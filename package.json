@@ -2,7 +2,7 @@
   "name": "bilimusic-player",
   "productName": "BiliMusic",
   "description": "哔哩哔哩、酷我、网易云音乐播放器",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "author": "BiliMusic",
   "main": "windows/main.cjs",

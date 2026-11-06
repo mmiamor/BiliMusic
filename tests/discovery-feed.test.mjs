@@ -5,15 +5,16 @@ import { DiscoveryFeed } from '../src/discovery-feed.mjs';
 const track = (id, source = 'bilibili', extra = {}) => ({ id: String(id), source, title: '曲目 ' + id, ...extra });
 const page = (tracks, extra = {}) => ({ tracks, hasMore: true, label: '音乐推荐', description: '公开音乐投稿', ...extra });
 
-function fixture({ ttl = 600000, time = 1000 } = {}) {
-  const requests = [], changes = [];
+function fixture({ ttl = 600000, time = 1000, quality = false } = {}) {
+  const requests = [], qualityRequests = [], changes = [];
   let clock = time;
   const feed = new DiscoveryFeed(
     (category, number) => new Promise((resolve, reject) => requests.push({ category, page: number, resolve, reject })),
     () => changes.push({ category: feed.category, loading: feed.current.loading, ids: feed.current.tracks.map(t => t.id) }),
-    { ttl, now: () => clock },
+    { ttl, now: () => clock, defaultCategory: 'popular', qualityFetcher: quality
+      ? tracks => new Promise((resolve, reject) => qualityRequests.push({ tracks, resolve, reject })) : undefined },
   );
-  return { feed, requests, changes, tick: value => { clock = value; } };
+  return { feed, requests, qualityRequests, changes, tick: value => { clock = value; } };
 }
 
 test('discovery is lazy and reuses in-flight initial, refresh and more requests', async () => {
@@ -21,7 +22,7 @@ test('discovery is lazy and reuses in-flight initial, refresh and more requests'
   assert.equal(feed.category, 'popular');
   assert.deepEqual(feed.current, {
     tracks: [], page: 0, loading: false, error: '', hasMore: false,
-    label: '', description: '', fetchedAt: 0,
+    label: '', description: '', fetchedAt: 0, qualityLoading: false, qualityChecked: 0,
   });
   assert.equal(requests.length, 0);
   const first = feed.load();
@@ -242,4 +243,184 @@ test('account changes invalidate every category and discard old responses before
   requests[4].resolve(page([track(10)]));
   await popular;
   assert.deepEqual(feed.current.tracks, [track(10)]);
+});
+
+const settled = () => new Promise(resolve => setImmediate(resolve));
+const evidence = (id, status = 'hires', extra = {}) => ({ id: String(id), qualityEvidence: {
+  status, formatStatus: status, label: status, codec: status === 'lossy' ? 'AAC' : 'FLAC',
+  playable: status === 'unknown' ? null : status !== 'unsupported',
+  platformTier: status === 'hires' ? 'hires' : 'standard',
+  checkedAt: 1000, expiresAt: 2000, ...extra,
+} });
+
+test('new feeds default to Hi-Res discovery while callers can explicitly choose another category', async () => {
+  const categories = [];
+  const feed = new DiscoveryFeed(async category => { categories.push(category); return page([]); });
+  assert.equal(feed.category, 'hires');
+  await feed.load();
+  assert.deepEqual(categories, ['hires']);
+  assert.equal(fixture().feed.category, 'popular');
+});
+
+test('catalog results return before bounded background inspection and cached reads never inspect again', async () => {
+  const { feed, requests, qualityRequests } = fixture({ quality: true });
+  const originals = [track('outside', 'kuwo'), ...Array.from({ length: 8 }, (_, i) => track(i + 1))];
+  const first = feed.load();
+  requests[0].resolve(page(originals));
+  await first;
+  assert.equal(feed.current.loading, false);
+  assert.deepEqual(feed.current.tracks, originals);
+  assert.equal(feed.current.qualityLoading, true);
+  assert.equal(feed.current.qualityChecked, 0);
+  assert.equal(qualityRequests.length, 1);
+  assert.deepEqual(qualityRequests[0].tracks.map(t => t.id), ['1','2','3','4','5','6']);
+  await feed.load();
+  await feed.select('popular');
+  assert.equal(requests.length, 1);
+  assert.equal(qualityRequests.length, 1);
+  qualityRequests[0].resolve([evidence(3), evidence(1, 'lossy')]);
+  await settled();
+  assert.equal(feed.current.tracks[0].id, '3');
+  assert.equal(feed.current.qualityLoading, false);
+  assert.equal(feed.current.qualityChecked, 2);
+  assert.ok(originals.every(t => !Object.hasOwn(t, 'qualityEvidence')));
+});
+
+test('only fresh playable Hi-Res moves ahead, in source order, and evidence contains no media handles', async () => {
+  const { feed, requests, qualityRequests, tick } = fixture({ quality: true });
+  const first = feed.load();
+  requests[0].resolve(page([1,2,3,4,5,6,7].map(id => track(id))));
+  await first;
+  qualityRequests[0].resolve([
+    evidence(4), evidence(2, 'hires', { mediaURL: 'https://cdn.invalid/private', headers: { Cookie: 'private' } }),
+    evidence(1, 'lossless'), evidence(3, 'unsupported'), evidence(5, 'hires', { playable: false }),
+    evidence(6, 'unknown'), evidence(7), evidence('unexpected'),
+  ]);
+  await settled();
+  assert.deepEqual(feed.current.tracks.map(t => t.id), ['2','4','1','3','5','6','7']);
+  assert.equal(feed.current.qualityChecked, 6);
+  assert.equal(feed.current.tracks[0].qualityEvidence.mediaURL, undefined);
+  assert.equal(feed.current.tracks[0].qualityEvidence.headers, undefined);
+  assert.equal(feed.current.tracks.find(t => t.id === '7').qualityEvidence, undefined);
+  tick(2000);
+  assert.deepEqual(feed.current.tracks.map(t => t.id), ['1','2','3','4','5','6','7']);
+  assert.equal(feed.current.qualityChecked, 0);
+  assert.ok(feed.current.tracks.every(t => !t.qualityEvidence));
+  await feed.load();
+  assert.equal(qualityRequests.length, 1);
+});
+
+test('pagination inspects only new videos and concurrent page probes merge without dropping earlier results', async () => {
+  const { feed, requests, qualityRequests } = fixture({ quality: true });
+  const first = feed.load();
+  requests[0].resolve(page([track(1), track(2)]));
+  await first;
+  const more = feed.load({ more: true });
+  requests[1].resolve(page([track(2), track(3), track(4)]));
+  await more;
+  assert.deepEqual(qualityRequests.map(r => r.tracks.map(t => t.id)), [['1','2'], ['3','4']]);
+  qualityRequests[1].resolve([evidence(3), evidence(4, 'lossy')]);
+  await settled();
+  assert.equal(feed.current.qualityLoading, true);
+  assert.deepEqual(feed.current.tracks.map(t => t.id), ['3','1','2','4']);
+  qualityRequests[0].resolve([evidence(2), evidence(1, 'unknown')]);
+  await settled();
+  assert.equal(feed.current.qualityLoading, false);
+  assert.equal(feed.current.qualityChecked, 4);
+  assert.deepEqual(feed.current.tracks.map(t => t.id), ['2','3','1','4']);
+  assert.equal(feed.current.page, 2);
+  assert.equal(feed.current.fetchedAt, 1000);
+});
+
+test('inactive quality replies update only their category cache and do not redraw the visible feed', async () => {
+  const { feed, requests, qualityRequests, changes } = fixture({ quality: true });
+  const popular = feed.load();
+  requests[0].resolve(page([track(1), track(2)]));
+  await popular;
+  const covers = feed.select('covers');
+  requests[1].resolve(page([track(20)]));
+  await covers;
+  const before = changes.length;
+  qualityRequests[0].resolve([evidence(2)]);
+  await settled();
+  assert.equal(changes.length, before);
+  assert.deepEqual(feed.current.tracks.map(t => t.id), ['20']);
+  assert.equal(feed.current.qualityLoading, true);
+  qualityRequests[1].resolve([evidence(20, 'lossy')]);
+  await settled();
+  await feed.select('popular');
+  assert.deepEqual(feed.current.tracks.map(t => t.id), ['2','1']);
+  assert.equal(feed.current.qualityChecked, 1);
+  assert.equal(qualityRequests.length, 2);
+});
+
+test('refresh and account invalidation discard late quality evidence even for matching track IDs', async () => {
+  const { feed, requests, qualityRequests, changes } = fixture({ quality: true });
+  const first = feed.load();
+  requests[0].resolve(page([track(1), track(2)]));
+  await first;
+  const refresh = feed.load({ refresh: true });
+  requests[1].resolve(page([track(1), track(2)]));
+  await refresh;
+  const before = changes.length;
+  qualityRequests[0].resolve([evidence(2)]);
+  await settled();
+  assert.equal(changes.length, before);
+  assert.deepEqual(feed.current.tracks.map(t => t.id), ['1','2']);
+  assert.equal(feed.current.qualityLoading, true);
+  assert.equal(feed.current.qualityChecked, 0);
+  feed.invalidate();
+  const replacement = feed.load();
+  requests[2].resolve(page([track(1), track(2)]));
+  await replacement;
+  const afterReset = changes.length;
+  qualityRequests[1].resolve([evidence(2)]);
+  await settled();
+  assert.equal(changes.length, afterReset);
+  assert.equal(feed.current.qualityLoading, true);
+  assert.equal(feed.current.qualityChecked, 0);
+  qualityRequests[2].resolve([evidence(1, 'lossy'), evidence(2, 'unknown')]);
+  await settled();
+  assert.deepEqual(feed.current.tracks.map(t => t.id), ['1','2']);
+  assert.equal(feed.current.qualityChecked, 2);
+  assert.equal(feed.current.qualityLoading, false);
+});
+
+test('failed quality requests never fail catalog loads or clear retained content and late errors stay isolated', async () => {
+  const { feed, requests, qualityRequests } = fixture({ quality: true });
+  const first = feed.load();
+  requests[0].resolve(page([track(1)]));
+  await first;
+  qualityRequests[0].reject(Error('probe offline'));
+  await settled();
+  assert.equal(feed.current.error, '');
+  assert.equal(feed.current.qualityLoading, false);
+  assert.equal(feed.current.qualityChecked, 0);
+  assert.deepEqual(feed.current.tracks, [track(1)]);
+  const more = feed.load({ more: true });
+  requests[1].resolve(page([track(2)]));
+  await more;
+  const refresh = feed.load({ refresh: true });
+  requests[2].reject(Error('catalog unavailable'));
+  await refresh;
+  qualityRequests[1].reject(Error('obsolete probe failure'));
+  await settled();
+  assert.equal(feed.current.error, 'catalog unavailable');
+  assert.equal(feed.current.qualityLoading, false);
+  assert.deepEqual(feed.current.tracks, [track(1), track(2)]);
+  assert.equal(feed.current.page, 2);
+});
+
+test('synchronously throwing or malformed quality fetchers settle without unhandled background rejections', async () => {
+  for (const qualityFetcher of [() => { throw Error('sync probe failure'); }, async () => null,
+    async () => [{ id: '1', qualityEvidence: { status: 'hires', playable: true } }],
+    async () => [evidence(1, 'invented')]]) {
+    const feed = new DiscoveryFeed(async () => page([track(1)]), () => {}, { qualityFetcher, now: () => 1000 });
+    await feed.load();
+    await settled();
+    assert.equal(feed.current.qualityLoading, false);
+    assert.equal(feed.current.qualityChecked, 0);
+    assert.equal(feed.current.error, '');
+    assert.deepEqual(feed.current.tracks, [track(1)]);
+  }
 });

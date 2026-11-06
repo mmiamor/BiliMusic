@@ -1,4 +1,4 @@
-const CACHE = 'bilimusic-shell-0.3.1-1';
+const CACHE = 'bilimusic-shell-0.3.2-1';
 const SHELL = [
   './index.html',
   './app.css',
@@ -8,6 +8,9 @@ const SHELL = [
   './discovery.css',
   './discovery-feed.mjs',
   './discovery-categories.mjs',
+  './audio-quality.mjs',
+  './radio.mjs',
+  './hifi-links.json',
   './window-chrome.css',
   './window-chrome.mjs',
   './viewport.mjs',

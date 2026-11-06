@@ -269,7 +269,7 @@ export class AudioEngine extends EventTarget {
   }
 
   seek(seconds) {
-    if (!Number.isFinite(seconds) || !this.#session) return;
+    if (!Number.isFinite(seconds) || !this.#session || this.#stream?.isLive) return;
     this.#resumeAt = Math.max(0, seconds);
     if (this.media.readyState >= 1) {
       const duration = this.media.duration;

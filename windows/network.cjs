@@ -7,18 +7,22 @@ const domains = ['bilibili.com', 'bilivideo.com', 'bilivideo.cn', 'biliapi.net',
 const headerNames = new Set(['accept', 'accept-language', 'origin', 'referer', 'user-agent',
   'csrf', 'secret', 'cross', 'x-requested-with', 'x-csrf-token']);
 const maxMetadata = 8 * 1024 * 1024;
+const radioURLs = new Set(['flac', 'mellow-flac', 'rock-flac', 'global-flac'].map(path => 'https://stream.radioparadise.com/' + path));
 const neteaseCatalog = new Set(['/api/cloudsearch/pc', '/api/song/detail/', '/api/song/lyric',
   '/api/song/enhance/player/url/v1', '/api/v1/artist/songs']);
 
 function checkedURL(input) {
   const url = new URL(input);
+  if (url.hostname === 'stream.radioparadise.com' && !radioURLs.has(input)) throw new Error('该来源地址不在受支持的平台范围内');
   // Passport payloads may contain session material. Only the native login window handles them.
   if (['passport.bilibili.com', 'account.bilibili.com'].includes(url.hostname)) {
     throw new Error('请在哔哩哔哩官方登录窗口完成授权');
   }
   const netease = url.hostname.endsWith('.music.126.net') || (url.hostname === 'music.163.com' &&
     (neteaseCatalog.has(url.pathname) || /^\/api\/v1\/(album\/[1-9]\d*|resource\/(hotcomments|comments)\/R_SO_4_[1-9]\d*)$/.test(url.pathname)));
-  const safeDomain = !url.port && (netease || domains.some(domain => url.hostname === domain || url.hostname.endsWith('.' + domain)));
+  const radio = url.hostname === 'stream.radioparadise.com' && !url.search && !url.hash &&
+    /^\/(?:flac|mellow-flac|rock-flac|global-flac)$/.test(url.pathname);
+  const safeDomain = !url.port && (radio || netease || domains.some(domain => url.hostname === domain || url.hostname.endsWith('.' + domain)));
   const edge = (url.port === '8082' && url.hostname.endsWith('.mcdn.bilivideo.cn')) ||
     (url.port === '4483' && url.hostname.endsWith('.edge.mountaintoys.cn'));
   if (url.protocol !== 'https:' || url.username || url.password || !(safeDomain || edge)) {
@@ -58,7 +62,10 @@ function openRemote(source, range, signal) {
     });
     request.on('error', reject);
     request.on('redirect', (_status, _method, url) => {
-      try { checkedURL(url); request.followRedirect(); } catch (error) { request.abort(); reject(error); }
+      try {
+        if (radioURLs.has(source.url) && !radioURLs.has(url)) throw new Error('电台重定向地址不受支持');
+        checkedURL(url); request.followRedirect();
+      } catch (error) { request.abort(); reject(error); }
     });
     request.on('response', (response) => {
       clearTimeout(timer);

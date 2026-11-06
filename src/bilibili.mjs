@@ -2,6 +2,7 @@ import { plain, positiveID, seconds, httpsURL, entity, getBody, getJSON, urlWith
 import { signedQuery } from './wbi.mjs';
 import { subtitleLyricLines } from './lyric-lines.mjs';
 import { DISCOVERY_CATEGORIES } from './discovery-categories.mjs';
+import { dashQualityEvidence, unknownQuality } from './audio-quality.mjs';
 
 const source = 'bilibili';
 const api = 'https://api.bilibili.com';
@@ -20,6 +21,7 @@ const discoveryQueries = Object.freeze({
   covers: { keyword: '翻唱', tid: 31, order: 'totalrank' },
   instrumental: { keyword: '演奏', tid: 59, order: 'totalrank' },
   original: { keyword: '原创', tid: 28, order: 'totalrank' },
+  hires: { keyword: 'Hi-Res', tid: 3, order: 'totalrank' },
 });
 const discoveryPageSize = 20;
 const discoveryPageLimit = 50;
@@ -58,10 +60,12 @@ export function dashStreams(dash, canPlayType) {
     const isDolby = Number(item.id) === 30250 || category === 'Dolby';
     const mimeType = item.mimeType || item.mime_type || 'audio/mp4';
     const rawFlac = /^audio\/(?:x-)?flac$/i.test(mimeType);
-    const codec = String(item.codecs || (isHiResTier || rawFlac ? 'fLaC' : isDolby ? 'ec-3' : 'mp4a.40.2')).trim();
-    const lossless = /^flac$/i.test(codec);
+    const declaredCodec = String(item.codecs || '').trim();
+    const codec = declaredCodec || (isHiResTier || rawFlac ? 'fLaC' : isDolby ? 'ec-3' : 'mp4a.40.2');
+    const formatKnown = Boolean(declaredCodec || rawFlac) && !(rawFlac && declaredCodec && !/^flac$/i.test(declaredCodec));
+    const lossless = formatKnown && (/^flac$/i.test(declaredCodec) || rawFlac);
     const kbps = Math.round(Number(item.bandwidth) / 1000);
-    const quality = lossless ? (isHiResTier ? 'Hi-Res · FLAC 无损' : 'FLAC 无损') :
+    const quality = !formatKnown ? '音质待确认' : lossless ? (isHiResTier ? '平台 Hi-Res · FLAC 无损' : 'FLAC 无损') :
       (isDolby ? 'Dolby' : /^mp4a/i.test(codec) ? 'AAC' : codec) + (kbps ? ' · ' + kbps + ' kbps' : '');
     return { item, mimeType, rawFlac, codec, lossless, quality, priority: lossless ? 2 : Number(isDolby) };
   }).sort((a,b) => b.priority - a.priority || Number(b.item.bandwidth) - Number(a.item.bandwidth));
@@ -102,11 +106,16 @@ export function biliProvider(request, canPlayType) {
   let session;
   let keys;
   let keyTime = 0;
+  let keysPending;
   let sessionEpoch = 0;
   const detailCache = new Map();
   const uploaderCursors = new Map();
   const discoveryPages = new Map();
   const discoveryRefreshes = new Map();
+  const qualityCache = new Map();
+  const qualityPending = new Map();
+  const qualityQueue = [];
+  let activeQualityJobs = 0;
   const json = (url, extra = headers) => getJSON(request, url, extra);
   const read = async (url, params, extra) => unwrap(await json(urlWithParams(url, params), extra));
   async function ensureSession() {
@@ -124,19 +133,29 @@ export function biliProvider(request, canPlayType) {
     session = null;
     keys = null;
     keyTime = 0;
+    keysPending = null;
+    qualityCache.clear();
+    for (const job of qualityPending.values()) job.finish(unknownQuality('session-changed'));
+    qualityPending.clear();
+    qualityQueue.length = 0;
   }
-  async function signed(path, params, extra) {
+  async function signed(path, params, extra, checkpoint = () => {}) {
     await ensureSession();
+    checkpoint();
     let signingKeys = keys;
     if (!signingKeys || Date.now() - keyTime > 3600000) {
       const epoch = sessionEpoch;
-      const data = await json(api + '/x/web-interface/nav');
-      signingKeys = data.data?.wbi_img; // Guests also receive keys, alongside code -101.
-      if (epoch === sessionEpoch) {
-        keys = signingKeys;
-        keyTime = Date.now();
+      if (!keysPending) {
+        const pending = json(api + '/x/web-interface/nav').then(data => {
+          const next = data.data?.wbi_img; // Guests receive signing keys alongside code -101.
+          if (epoch === sessionEpoch) { keys = next; keyTime = Date.now(); }
+          return next;
+        }).finally(() => { if (keysPending === pending) keysPending = null; });
+        keysPending = pending;
       }
+      signingKeys = await keysPending;
     }
+    checkpoint();
     return unwrap(await json(api + path + '?' + signedQuery(params, signingKeys), extra));
   }
   async function detail(bvid) {
@@ -164,7 +183,8 @@ export function biliProvider(request, canPlayType) {
       throw new Error('音乐发现页码须为 1 至 50。');
     }
     const config = discoveryQueries[category];
-    const metadata = DISCOVERY_CATEGORIES.find(item => item.id === category);
+    const metadata = DISCOVERY_CATEGORIES.find(item => item.id === category) ||
+      { title: 'Hi-Res 候选', description: '哔哩哔哩音乐分区 · Hi-Res 关键词候选 · 需核验当前音轨' };
     let state = discoveryPages.get(category);
     let refreshToken;
     if (page === 1) {
@@ -213,6 +233,7 @@ export function biliProvider(request, canPlayType) {
         if (Number.isSafeInteger(published) && published > 0) track.publishedAt = published * 1000;
         const playCount = Number(row.play);
         if (Number.isSafeInteger(playCount) && playCount >= 0) track.playCount = playCount;
+        if (category === 'hires') track.qualityEvidence = unknownQuality('candidate');
         tracks.push(track);
       }
       const hasMore = data.result.length > 0 && page < discoveryPageLimit &&
@@ -320,6 +341,87 @@ export function biliProvider(request, canPlayType) {
     if (!cid) throw new Error('哔哩哔哩未返回此分 P 的编号。');
     return cid;
   }
+  function qualityIdentity(track) {
+    const page = track?.page ?? 1;
+    if (track?.source !== source || !bvidPattern.test(track?.bvid) || !Number.isSafeInteger(page) || page < 1 || page > 10000) {
+      throw new Error('音质核验需要有效的哔哩哔哩视频与分 P。');
+    }
+    return { id: 'bilibili:' + track.bvid + ':p' + page, bvid: track.bvid, page };
+  }
+  function rememberQuality(id, evidence, epoch) {
+    if (epoch !== sessionEpoch) return;
+    if (qualityCache.size >= 200 && !qualityCache.has(id)) qualityCache.delete(qualityCache.keys().next().value);
+    qualityCache.set(id, evidence);
+  }
+  function unknownProbeError(error) {
+    const reason = error?.qualityReason || (/-101|未登录/.test(error?.message) ? 'login-required'
+      : /请求受限|平台限制|HTTP (?:412|429)/.test(error?.message) ? 'restricted'
+        : /timeout|超时/i.test(error?.message) || error?.name === 'AbortError' ? 'timeout' : 'unavailable');
+    return unknownQuality(reason);
+  }
+  async function probeQuality(job) {
+    const checkpoint = () => {
+      const qualityReason = job.epoch !== sessionEpoch ? 'session-changed' : job.deadline <= Date.now() ? 'timeout' : '';
+      if (qualityReason) throw Object.assign(new Error('音质暂未确认'), { qualityReason });
+    };
+    checkpoint();
+    // Resolve the CID from the video's own page list rather than trusting a
+    // caller-supplied CID that could belong to a different upload.
+    const info = await detail(job.track.bvid);
+    checkpoint();
+    if (info.bvid && info.bvid !== job.track.bvid) throw new Error('视频资料不匹配');
+    const cid = positiveID(info.pages?.find(part => Number(part.page) === job.track.page)?.cid);
+    if (!cid) return unknownQuality('missing-page');
+    const data = await signed('/x/player/wbi/playurl',
+      { bvid: job.track.bvid, cid, fnval: 4048, fnver: 0, fourk: 1, qn: 80 }, undefined, checkpoint);
+    checkpoint();
+    return dashQualityEvidence(data.dash, canPlayType);
+  }
+  function pumpQualityQueue() {
+    while (activeQualityJobs < 2 && qualityQueue.length) {
+      const job = qualityQueue.shift();
+      if (job.settled) {
+        if (qualityPending.get(job.track.id) === job) qualityPending.delete(job.track.id);
+        continue;
+      }
+      activeQualityJobs++;
+      void probeQuality(job).then(job.finish, error => job.finish(unknownProbeError(error))).finally(() => {
+        // The native/PWA transport can outlive our UI timeout. Hold this slot
+        // until that request settles so another batch never exceeds two probes.
+        activeQualityJobs--;
+        if (qualityPending.get(job.track.id) === job) qualityPending.delete(job.track.id);
+        pumpQualityQueue();
+      });
+    }
+  }
+  function qualityFor(track) {
+    const cached = qualityCache.get(track.id);
+    if (cached?.expiresAt > Date.now()) return Promise.resolve({ ...cached });
+    const existing = qualityPending.get(track.id);
+    if (existing) return existing.result;
+    if (qualityPending.size >= 24) return Promise.resolve(unknownQuality('busy'));
+    const job = { track, epoch: sessionEpoch, deadline: Date.now() + 6000, settled: false };
+    job.result = new Promise(resolve => {
+      job.finish = evidence => {
+        if (job.settled) return;
+        job.settled = true;
+        clearTimeout(job.timer);
+        const result = job.epoch === sessionEpoch ? evidence : unknownQuality('session-changed');
+        rememberQuality(track.id, result, job.epoch);
+        resolve({ ...result });
+      };
+    });
+    job.timer = setTimeout(() => job.finish(unknownQuality('timeout')), 6000);
+    qualityPending.set(track.id, job);
+    qualityQueue.push(job);
+    pumpQualityQueue();
+    return job.result;
+  }
+  async function inspectQuality(tracks) {
+    if (!Array.isArray(tracks) || tracks.length > 6) throw new Error('每批最多核验 6 首音乐。');
+    const unique = new Map(tracks.map(track => { const value = qualityIdentity(track); return [value.id, value]; }));
+    return Promise.all([...unique.values()].map(async track => ({ id: track.id, qualityEvidence: await qualityFor(track) })));
+  }
   async function resolve(track) {
     if (track.au) return audioStreams(track);
     const cid = await cidFor(track);
@@ -344,5 +446,5 @@ export function biliProvider(request, canPlayType) {
     ]);
     return subtitleLyricLines(words, sub.lan, translations);
   }
-  return { search, discover, resolve, lyrics, entities, searchEntities, browse, collections, resetSession };
+  return { search, discover, inspectQuality, resolve, lyrics, entities, searchEntities, browse, collections, resetSession };
 }

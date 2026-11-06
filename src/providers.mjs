@@ -3,6 +3,7 @@ import { kuwoProvider } from './kuwo.mjs';
 import { entity, positiveID } from './provider-utils.mjs';
 import { annotateLyrics } from './lyric-lines.mjs';
 import { neteaseLink, neteaseProvider } from './netease.mjs';
+import { radioProvider } from './radio.mjs';
 
 export function parseEntity(input) {
   const netease = neteaseLink(input);
@@ -32,7 +33,7 @@ export function parseEntity(input) {
 }
 
 export function createProviders(request, { canPlayType } = {}) {
-  const providers = { bilibili: biliProvider(request, canPlayType), kuwo: kuwoProvider(request), netease: neteaseProvider(request) };
+  const providers = { bilibili: biliProvider(request, canPlayType), kuwo: kuwoProvider(request), netease: neteaseProvider(request), radioparadise: radioProvider() };
   const from = (source) => {
     if (!Object.hasOwn(providers, source)) throw new Error('未识别的音乐平台。');
     return providers[source];
@@ -42,6 +43,7 @@ export function createProviders(request, { canPlayType } = {}) {
     parseEntity,
     resetBilibiliSession: () => providers.bilibili.resetSession(),
     discover: (category = 'popular', page = 1) => providers.bilibili.discover(category, page),
+    inspectQuality: tracks => providers.bilibili.inspectQuality(tracks),
     search: (source, query, page = 1) => from(source).search(String(query).trim(), pageNumber(page)),
     searchEntities: (source, type, query, page = 1) => from(source).searchEntities(type, String(query).trim(), pageNumber(page)),
     browse: (entry, page = 1) => from(entry.source).browse(entry, pageNumber(page)),

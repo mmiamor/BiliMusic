@@ -6,7 +6,7 @@ export const sectionInfo = {
   album: ['收藏的专辑', 'album'],
   history: ['最近播放', 'history'],
 };
-export const sourceNames = { bilibili: '哔哩哔哩', kuwo: '酷我音乐', netease:'网易云音乐', local: '内置原声' };
+export const sourceNames = { bilibili: '哔哩哔哩', kuwo: '酷我音乐', netease:'网易云音乐', radioparadise: 'Radio Paradise', local: '内置原声' };
 export const session = [
   ['mist', '薄雾序曲', 28.26],
   ['creek', '溪流之间', 23.87],

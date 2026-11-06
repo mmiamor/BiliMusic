@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('biliNative', {
   releaseMedia: (url) => ipcRenderer.invoke('bili:release', url),
   loginBilibili: () => ipcRenderer.invoke('bili:login'),
   logoutBilibili: () => ipcRenderer.invoke('bili:logout'),
+  openSource: id => ipcRenderer.invoke('bili:open-source', id),
   windowControls: {
     getState: () => ipcRenderer.invoke('bili:window', 'state'),
     minimize: () => ipcRenderer.invoke('bili:window', 'minimize'),

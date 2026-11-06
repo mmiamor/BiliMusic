@@ -29,5 +29,6 @@
     releaseMedia(url) { URL.revokeObjectURL(url); },
     loginBilibili: () => send('loginBilibili', {}),
     logoutBilibili: () => send('logoutBilibili', {}),
+    openSource: id => send('openSource', { id }),
   });
 })();

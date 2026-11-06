@@ -2,6 +2,7 @@ import { CookieJar } from 'tough-cookie';
 import QRCode from 'qrcode';
 import { createProviders } from '../src/providers.mjs';
 import { DISCOVERY_CATEGORIES } from '../src/discovery-categories.mjs';
+import { RADIO_STATIONS, isRadioMediaURL } from '../src/radio.mjs';
 import metadata from './package.json' with { type: 'json' };
 
 const serverAgent = 'BiliMusic/' + metadata.version;
@@ -27,6 +28,7 @@ export class HttpError extends Error {
 function requireInput(ok) { if (!ok) throw new HttpError(400, '无效的音源参数。'); }
 function under(host, domain) { return host === domain || host.endsWith('.' + domain); }
 function safeURL(text, source) {
+  if (source === 'radioparadise' && !isRadioMediaURL(text)) throw Error('电台地址不受支持。');
   const url = new URL(text);
   const edge = source === 'bilibili' && (
     (url.port === '8082' && url.hostname.endsWith('.mcdn.bilivideo.cn')) ||
@@ -55,6 +57,7 @@ function metadataFamily(url) {
   return under(url.hostname, 'kuwo.cn') ? 'kuwo' : 'bilibili';
 }
 export function mediaAllowed(url, source) {
+  if (source === 'radioparadise') return isRadioMediaURL(url.href);
   const host = url.hostname;
   if (url.port) return source === 'bilibili' && (
     (url.port === '8082' && host.endsWith('.mcdn.bilivideo.cn')) ||
@@ -172,7 +175,7 @@ function page(value = 1) {
   requireInput(Number.isInteger(value) && value > 0 && value <= 10000);
   return value;
 }
-function source(value) { requireInput(['bilibili','kuwo','netease'].includes(value)); return value; }
+function source(value) { requireInput(['bilibili','kuwo','netease','radioparadise'].includes(value)); return value; }
 function query(value) {
   requireInput(typeof value === 'string' && value.trim().length > 0 && value.length <= 1024);
   return value.trim();
@@ -180,6 +183,7 @@ function query(value) {
 function entity(value) {
   requireInput(value && typeof value === 'object');
   const platform = source(value.source);
+  requireInput(platform !== 'radioparadise');
   const types = platform === 'bilibili' ? ['uploader', 'collection'] : ['artist', 'album'];
   requireInput(types.includes(value.type));
   const item = { source: platform, type: value.type, id: id(value.id) };
@@ -189,6 +193,11 @@ function entity(value) {
 function identify(value) {
   requireInput(value && typeof value === 'object');
   const platform = source(value.source);
+  if (platform === 'radioparadise') {
+    const station = RADIO_STATIONS.find(item => item.stationId === value.stationId);
+    requireInput(!!station);
+    return station;
+  }
   if (platform !== 'bilibili') return { source: platform, rid: id(value.rid), duration: Math.max(0, Math.min(86400, Number(value.duration) || 0)) };
   if (value.au) return { source: platform, au: id(value.au) };
   requireInput(typeof value.bvid === 'string' && /^BV[0-9A-Za-z]{10}$/.test(value.bvid));
@@ -217,6 +226,16 @@ export async function catalog(session, op, args) {
     remember(result.tracks);
     return result;
   }
+  if (op === 'inspectQuality') {
+    requireInput(args.length === 1 && Array.isArray(args[0]) && args[0].length <= 6);
+    const tracks = args[0].map(value => {
+      const clean = identify(value);
+      requireInput(clean.source === 'bilibili' && !!clean.bvid && !clean.au && clean.page <= 1000);
+      const key = 'bilibili:' + clean.bvid + ':p' + clean.page;
+      return session.tracks.get(key) || { ...clean, id: key };
+    });
+    return providers.inspectQuality(tracks);
+  }
   if (op === 'searchEntities') {
     const platform = source(args[0]);
     requireInput((platform === 'bilibili' ? ['uploader'] : ['artist', 'album']).includes(args[1]));
@@ -236,7 +255,7 @@ export async function catalog(session, op, args) {
     requireInput(sort === 'hot' || sort === 'new');
     return providers.comments(track, { sort, page: page(options.page) });
   }
-  const trackId = track.rid ? track.source + ':' + track.rid : track.au ? 'bilibili:au' + track.au : 'bilibili:' + track.bvid + ':p' + track.page;
+  const trackId = track.source === 'radioparadise' ? track.id : track.rid ? track.source + ':' + track.rid : track.au ? 'bilibili:au' + track.au : 'bilibili:' + track.bvid + ':p' + track.page;
   const saved = session.tracks.get(trackId);
   // Favorites persist across server restarts. Reconstruct the AU lyric URL and
   // album/artist links from platform metadata instead of accepting caller-supplied URLs.
@@ -261,7 +280,8 @@ export async function catalog(session, op, args) {
     const key = crypto.randomUUID();
     if (session.media.size >= 128) session.media.delete(session.media.keys().next().value);
     session.media.set(key, { ...item, source: track.source, expires: now + 4 * 3600000 });
-    published.push({ url: '/api/media/' + key, codec: item.codec, lossless: item.lossless, quality: item.quality, mimeType: item.mimeType });
+    published.push({ url: '/api/media/' + key, codec: item.codec, lossless: item.lossless, quality: item.quality, mimeType: item.mimeType,
+      ...(track.source === 'radioparadise' && { isLive: true }) });
   }
   if (!published.length) throw Error('没有可供网页播放的音轨。');
   return published;

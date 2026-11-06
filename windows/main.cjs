@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, Menu, net, protocol, session } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, net, protocol, session, shell } = require('electron');
+const sourceLinks = require('../src/hifi-links.json');
 const { randomUUID } = require('node:crypto');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -63,6 +64,11 @@ app.whenReady().then(async () => {
   ipcMain.handle('bili:release', (event, url) => { fromApp(event); media.delete(url); });
   ipcMain.handle('bili:login', (event) => { fromApp(event); return biliSession.login(window); });
   ipcMain.handle('bili:logout', (event) => { fromApp(event); return biliSession.logout(); });
+  ipcMain.handle('bili:open-source', (event, id) => {
+    fromApp(event);
+    if (typeof id !== 'string' || !Object.hasOwn(sourceLinks, id)) throw new Error('未知音源');
+    return shell.openExternal(sourceLinks[id]);
+  });
   ipcMain.handle('bili:window', (event, command) => {
     fromApp(event);
     switch (command) {

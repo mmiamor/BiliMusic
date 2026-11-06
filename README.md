@@ -1,8 +1,15 @@
 # BiliMusic
 
-BiliMusic 支持哔哩哔哩、酷我、网易云音乐，提供 Windows 桌面应用、iOS 自建工程和 PWA。
+BiliMusic 支持哔哩哔哩、酷我、网易云音乐和 Radio Paradise 无损电台，提供 Windows 桌面应用、iOS 自建工程和 PWA。
 
 仓库：<https://github.com/mmiamor/BiliMusic>
+
+## 0.3.2
+
+- B 站首页默认“Hi-Res 优先”：候选内容立即显示，每页后台核验前六首新投稿，当前账号返回且设备支持解码的 Hi-Res 优先排序。标题中的 Hi-Res/无损字样只作为搜索线索，不作为认证。
+- 音质证据区分 Hi-Res 档位、普通无损、当前有损、设备不支持与尚未确认；不会凭 FLAC 推定 24 bit / 96 kHz。账号切换会失效证据，实际播放重新解析。
+- 新增“Hi-Fi 音源”页，接入 Radio Paradise 四个官方 Ogg FLAC 直播频道，明确标注 16 bit / 44.1 kHz CD 无损并禁用进度拖动。Windows 和 PWA 可在应用内收听；iOS 原生版暂转官方页面。
+- Qobuz、TIDAL、QQ 音乐提供明确标识的外部官方入口，尚未接入本应用播放器。平台可用性与接入条件见 [Hi-Fi 音源核验](docs/hifi-sources.md)。
 
 ## 0.3.1
 
@@ -16,9 +23,11 @@ BiliMusic 支持哔哩哔哩、酷我、网易云音乐，提供 Windows 桌面�
 - 播放详情采用双栏布局：左侧保留歌曲、封面、进度和主控制；右侧切换歌词、队列和十段 DSP。小窗口改为纵向布局。
 - 修复 Windows 读取哔哩哔哩合集时的 `net::ERR_BLOCKED_BY_CLIENT`，保留平台会话和域名白名单。
 
-本仓库是当前开发源码，0.3.1 尚未更新到公开站点。界面取舍见 [发现页设计](docs/discovery-design.md) 与 [播放页设计](docs/player-design.md)，可下载 [发现页交互原型](docs/discovery-prototype.html) 后本地打开。
+本仓库是当前开发源码，0.3.2 尚未更新到公开站点。界面取舍见 [发现页设计](docs/discovery-design.md) 与 [播放页设计](docs/player-design.md)，可下载 [发现页交互原型](docs/discovery-prototype.html) 后本地打开。
 
-![音乐发现与 macOS 风格界面](docs/discovery-home.webp)
+![Hi-Res 优先发现，音质按实际核验结果显示](docs/hifi-discovery.webp)
+
+[查看 Hi-Fi 音源页](docs/hifi-sources.webp)
 
 ## Windows
 

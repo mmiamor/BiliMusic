@@ -57,6 +57,17 @@ final class PlayerBridge: NSObject, WKScriptMessageHandlerWithReply {
         Task {
             do {
                 switch action {
+                case "openSource":
+                    guard let id = input["id"] as? String,
+                          let file = Bundle.main.resourceURL?.appendingPathComponent("src/hifi-links.json"),
+                          let data = try? Data(contentsOf: file),
+                          let links = try? JSONDecoder().decode([String: String].self, from: data),
+                          let text = links[id], let url = URL(string: text), url.scheme == "https" else {
+                        throw PlayerError("未知音源")
+                    }
+                    let opened = await UIApplication.shared.open(url)
+                    guard opened else { throw PlayerError("无法打开音源官网") }
+                    replyHandler(true, nil)
                 case "loginBilibili":
                     guard let presenter = message.webView?.window?.rootViewController,
                           presenter.presentedViewController == nil else { throw PlayerError("已有窗口正在打开") }

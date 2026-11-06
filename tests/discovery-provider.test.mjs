@@ -24,7 +24,7 @@ function provider(respond) {
 test('discovery requests the declared music regions and sorting, not the retired chart or global popular feed', async () => {
   const expected = {
     popular: [3, 'click'], latest: [3, 'pubdate'], live: [29, 'totalrank'],
-    covers: [31, 'totalrank'], instrumental: [59, 'totalrank'], original: [28, 'totalrank'],
+    covers: [31, 'totalrank'], instrumental: [59, 'totalrank'], original: [28, 'totalrank'], hires: [3, 'totalrank'],
   };
   const { api, requests } = provider(url => response({ page: 1, numPages: 1,
     result: [row(1, { typeid: url.searchParams.get('tids') === '3' ? '193' : url.searchParams.get('tids') })] }));
@@ -40,6 +40,23 @@ test('discovery requests the declared music regions and sorting, not the retired
     assert.equal(result.description, category.description);
     assert.equal(result.source, 'bilibili');
     assert.ok(Number.isSafeInteger(result.updatedAt));
+  }
+});
+
+test('Hi-Res discovery marks keyword results only as candidates and never probes twenty tracks during discovery', async () => {
+  const { api, requests } = provider(() => response({ page: 1, numPages: 1,
+    result: [row(1, { title: 'Hi-Res 24bit 192kHz 无损音乐' }), row(2, { title: '普通标题' })] }));
+  const result = await api.discover('hires');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].searchParams.get('keyword'), 'Hi-Res');
+  assert.equal(requests[0].searchParams.get('tids'), '3');
+  assert.equal(result.tracks.length, 2);
+  for (const track of result.tracks) {
+    assert.equal(track.qualityEvidence.status, 'unknown');
+    assert.equal(track.qualityEvidence.lossless, null);
+    assert.equal(track.qualityEvidence.playable, null);
+    assert.equal(track.qualityEvidence.reason, 'candidate');
+    assert.equal(track.qualityEvidence.expiresAt, 0);
   }
 });
 

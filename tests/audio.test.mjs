@@ -26,6 +26,20 @@ class Media extends EventTarget {
 // Playback control tests do not need a sound device.
 class Player extends AudioEngine { async unlock() {} }
 
+test('live streams reject seeking while ordinary tracks remain seekable', async () => {
+  const media = new Media(), player = new Player(media);
+  await player.start([{ url: './live.ogg', isLive: true }]);
+  media.duration = Infinity;
+  media.currentTime = 8;
+  player.seek(30);
+  assert.equal(media.currentTime, 8);
+  await player.start([{ url: './track.flac' }]);
+  media.duration = 90;
+  player.seek(30);
+  assert.equal(media.currentTime, 30);
+  player.stop();
+});
+
 test('a mobile browser can start the prepared PWA stream on a second tap', async t => {
   let allowed = false;
   class GestureMedia extends Media {

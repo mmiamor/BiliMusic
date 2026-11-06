@@ -7,6 +7,7 @@ import { CommentFeed } from './comment-feed.mjs';
 import { installViewport } from './viewport.mjs';
 import { DiscoveryFeed } from './discovery-feed.mjs';
 import { DISCOVERY_CATEGORIES } from './discovery-categories.mjs';
+import { RADIO_STATIONS } from './radio.mjs';
 
 installWebBridge();
 installViewport();
@@ -90,9 +91,12 @@ let entityParents = [],
   accountBusy = false,
   accountChecked = false;
 let homeGroups = {}, selectedQueue = [];
+let officialLinks = Object.create(null);
+void fetch('./hifi-links.json').then(response => response.json()).then(links => { officialLinks = links; }).catch(() => {});
 const labels = {
   home: '发现音乐',
   search: '音源搜索',
+  hifi: 'Hi-Fi 音源',
   library: '我的资料库',
   entity: '详情',
   ...Object.fromEntries(Object.entries(sectionInfo).map(([k, [label]]) => [k, label])),
@@ -106,7 +110,7 @@ const shortType = {
 };
 const discovery = new DiscoveryFeed((category, page) => api.discover(category, page), () => {
   if (state.page === 'home') renderView();
-});
+}, { qualityFetcher: tracks => api.inspectQuality(tracks) });
 const action = (name, value = '') => `data-action="${esc(name)}" data-value="${esc(value)}"`;
 function iconButton(name, title, act, value = '', extra = '') {
   return `<button type="button" class="icon ${extra}" title="${esc(title)}" aria-label="${esc(title)}" ${action(act, value)}>${icon(name)}</button>`;
@@ -133,7 +137,7 @@ function sidebar() {
   $('#sidebar').innerHTML =
     `<button class="brand" ${action('nav', 'home')}><span class="brand-icon"><img src="./icons/v021-180.png" alt=""></span>BiliMusic</button>
     <div class="nav-scroll"><h2 class="nav-caption">音乐馆</h2>
-    ${nav('发现音乐', 'discover', 'home')}${nav('音源搜索', 'search', 'search')}
+    ${nav('发现音乐', 'discover', 'home')}${nav('音源搜索', 'search', 'search')}${nav('Hi-Fi 音源', 'wave', 'hifi')}
     <h2 class="nav-caption second">我的资料库</h2>
     ${Object.entries(sectionInfo)
       .map(([key, [label, glyph]]) => nav(label, glyph, key, library.list(key).length))
@@ -164,7 +168,7 @@ function trackList(items) {
       const playing =
         state.current && entryKey(state.current) === entryKey(t) && state.playback === 'playing';
       return `<div class="track-row ${playing ? 'playing' : ''}"><button class="song-main" ${action('track', i)} aria-label="播放 ${esc(t.title)}"><span class="track-index">${playing ? icon('wave', 15) : String(i + 1).padStart(2, '0')}</span>${cover(t, 'thumb')}<span class="track-text"><strong>${esc(t.title)}</strong><small>${esc(t.artist || sourceNames[t.source])}</small></span></button>
-      <span class="track-time">${t.duration ? fmt(t.duration) : '—'}</span>${iconButton('dots', '曲目详情：' + t.title, 'info', i)}</div>`;
+      <span class="track-time">${t.isLive ? '直播' : t.duration ? fmt(t.duration) : '—'}</span>${iconButton('dots', '曲目详情：' + t.title, 'info', i)}</div>`;
     })
     .join('')}</div>`;
 }
@@ -173,29 +177,68 @@ function home() {
   const category = DISCOVERY_CATEGORIES.find(item => item.id === discovery.category);
   homeGroups = { recommended: [...feed.tracks], recent: library.list('history').filter(t => t.source !== 'local').slice(0, 4), offline: session };
   const lead = feed.tracks[0];
+  const hiResCount = feed.tracks.filter(track => track.qualityEvidence?.status === 'hires' && track.qualityEvidence?.playable === true && track.qualityEvidence?.expiresAt > Date.now()).length;
   const feedback = feed.error
     ? `<div class="discovery-feedback" role="status"><span>${esc(feed.error)}${lead ? ' 已保留上次内容。' : ''}</span><button class="text-action" ${action('discover-refresh')}>重试</button></div>`
     : feed.loading ? `<p class="discovery-status" role="status">${lead ? '正在更新音乐…' : '正在读取音乐分区…'}</p>` : '';
   const featured = lead ? `<article class="discovery-feature">
-    <button class="feature-art" ${action('home-track','recommended:0')} aria-label="播放 ${esc(lead.title)}">${cover(lead)}<span class="cover-play">${icon('play',20)}</span></button>
-    <div class="feature-copy"><p class="feature-kicker">${esc(feed.label || category?.title || '音乐精选')}</p><h2>${esc(lead.title)}</h2><p class="feature-artist">${esc(lead.artist || '哔哩哔哩音乐')}</p><p class="feature-source">哔哩哔哩${lead.duration ? ' · '+fmt(lead.duration) : ''}</p><div class="feature-actions"><button class="primary" ${action('home-track','recommended:0')}>${icon('play',14)} 播放</button><button class="secondary" ${action('home-info','recommended:0')}>曲目详情</button></div></div></article>` : '';
+    <button class="feature-art" ${action('home-track',homeValue('recommended',lead))} aria-label="播放 ${esc(lead.title)}">${cover(lead)}<span class="cover-play">${icon('play',20)}</span></button>
+    <div class="feature-copy"><p class="feature-kicker">${esc(feed.label || category?.title || '音乐精选')}</p><h2>${esc(lead.title)}</h2><p class="feature-artist">${esc(lead.artist || '哔哩哔哩音乐')}</p>${qualityBadge(lead)}<p class="feature-source">哔哩哔哩${lead.duration ? ' · '+fmt(lead.duration) : ''}</p><div class="feature-actions"><button class="primary" ${action('home-track',homeValue('recommended',lead))}>${icon('play',14)} 播放</button><button class="secondary" ${action('home-info',homeValue('recommended',lead))}>曲目详情</button></div></div></article>` : '';
   const recommendations = feed.tracks.length ? `<section class="discovery-section"><div class="section-head"><h2>${esc(category?.title || '音乐推荐')}</h2><span>${feed.tracks.length} 个音乐投稿</span></div><div class="discovery-grid">${feed.tracks.slice(1).map((track,i) => discoveryCard(track,i+1)).join('')}</div>${feed.hasMore ? `<button class="more" ${action('discover-more')} ${feed.loading ? 'disabled' : ''}>${feed.loading ? '正在加载…' : '加载更多音乐'}</button>` : ''}</section>` : !feed.loading ? empty('暂时没有推荐内容', feed.error ? '可以重试，或从音源搜索直接找歌。' : '换一个分类，继续发现音乐。', `<button class="primary" ${action('source','bilibili')}>${icon('search',15)} 搜索音乐</button>`) : `<div class="discovery-loading" aria-hidden="true"><span></span><span></span><span></span></div>`;
   return `<div class="discovery-page"><header class="discovery-heading"><div><h1>发现音乐</h1><p class="discovery-subtitle">找到下一首，想要单曲循环的歌。</p></div><button class="refresh-action" ${action('discover-refresh')} ${feed.loading ? 'disabled' : ''}>${icon('history',15)} ${feed.loading ? '更新中' : '刷新'}</button></header>
     <div class="discovery-categories" role="group" aria-label="音乐分类">${DISCOVERY_CATEGORIES.map(item => `<button ${action('discover-category',item.id)} aria-pressed="${item.id === discovery.category}" class="${item.id === discovery.category ? 'selected' : ''}">${esc(item.title)}</button>`).join('')}</div>
     <div class="discovery-caption"><span>${esc(feed.description || '哔哩哔哩音乐分区')}</span>${feed.fetchedAt ? `<span>更新于 ${new Date(feed.fetchedAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}</div>
-    ${feedback}${featured}
-    ${homeGroups.recent.length ? `<section class="discovery-section recent-section"><div class="section-head"><h2>接着听</h2><button class="text-action" ${action('nav','history')}>查看全部 ${icon('chevron',12)}</button></div><div class="recent-grid">${homeGroups.recent.map((track,i) => `<button class="recent-track" ${action('home-track','recent:'+i)} aria-label="播放 ${esc(track.title)}">${cover(track,'thumb')}<span><strong>${esc(track.title)}</strong><small>${esc(track.artist || sourceNames[track.source])}</small></span>${icon('play',14)}</button>`).join('')}</div></section>` : ''}
-    ${recommendations}<section class="discovery-sources"><h2>更多音源</h2><div>${sourceCard('bilibili','哔哩哔哩','投稿与合集')}${sourceCard('kuwo','酷我音乐','歌曲与专辑')}${sourceCard('netease','网易云音乐','音乐与评论')}</div></section>
-    <details class="offline-session"><summary>离线试听 · 山间来信</summary><p>三首内置器乐曲，可在没有网络时试听设备。</p><div>${session.map((track,i)=>`<button ${action('home-track','offline:'+i)}>${icon('play',12)} ${esc(track.title)} <small>${fmt(track.duration)}</small></button>`).join('')}</div></details></div>`;
+    ${feedback}${discovery.category === 'hires' ? `<p class="quality-explainer" role="status">${feed.qualityLoading ? '正在核验音轨，Hi-Res 可用曲目会优先显示。' : hiResCount ? '已确认 '+hiResCount+' 首 Hi-Res 可用，其余曲目点播时确认。' : '当前尚未确认可用的 Hi-Res，可登录哔哩哔哩后刷新。'} 标题描述不作为音质认证。 <button class="text-action" ${action('source','bilibili')}>登录与音源搜索</button></p>` : ''}${featured}
+    ${homeGroups.recent.length ? `<section class="discovery-section recent-section"><div class="section-head"><h2>接着听</h2><button class="text-action" ${action('nav','history')}>查看全部 ${icon('chevron',12)}</button></div><div class="recent-grid">${homeGroups.recent.map((track,i) => `<button class="recent-track" ${action('home-track',homeValue('recent',track))} aria-label="播放 ${esc(track.title)}">${cover(track,'thumb')}<span><strong>${esc(track.title)}</strong><small>${esc(track.artist || sourceNames[track.source])}</small></span>${icon('play',14)}</button>`).join('')}</div></section>` : ''}
+    ${recommendations}<section class="discovery-sources"><header><h2>更多音源</h2><button class="text-action" ${action('nav','hifi')}>探索 Hi-Fi 音源 ${icon('chevron',12)}</button></header><div>${sourceCard('bilibili','哔哩哔哩','投稿与合集')}${sourceCard('kuwo','酷我音乐','歌曲与专辑')}${sourceCard('netease','网易云音乐','音乐与评论')}</div></section>
+    <details class="offline-session"><summary>离线试听 · 山间来信</summary><p>三首内置器乐曲，可在没有网络时试听设备。</p><div>${session.map((track,i)=>`<button ${action('home-track',homeValue('offline',track))}>${icon('play',12)} ${esc(track.title)} <small>${fmt(track.duration)}</small></button>`).join('')}</div></details></div>`;
 }
 function discoveryCard(track, index) {
   const playing = entryKey(track) === entryKey(state.current) && state.playback === 'playing';
-  return `<article class="discovery-card ${playing ? 'playing' : ''}"><button class="discovery-card-main" ${action('home-track','recommended:'+index)} aria-label="播放 ${esc(track.title)}"><span class="discovery-card-art">${cover(track)}<span class="card-duration">${fmt(track.duration)}</span><span class="cover-play">${icon(playing ? 'wave' : 'play',18)}</span></span><strong title="${esc(track.title)}">${esc(track.title)}</strong><small>${esc(track.artist || '哔哩哔哩音乐')}</small></button>${iconButton('dots','曲目详情：'+track.title,'home-info','recommended:'+index)}</article>`;
+  return `<article class="discovery-card ${playing ? 'playing' : ''}"><button class="discovery-card-main" ${action('home-track',homeValue('recommended',track))} aria-label="播放 ${esc(track.title)}"><span class="discovery-card-art">${cover(track)}<span class="card-duration">${fmt(track.duration)}</span>${qualityBadge(track)}<span class="cover-play">${icon(playing ? 'wave' : 'play',18)}</span></span><strong title="${esc(track.title)}">${esc(track.title)}</strong><small>${esc(track.artist || '哔哩哔哩音乐')}</small></button>${iconButton('dots','曲目详情：'+track.title,'home-info',homeValue('recommended',track))}</article>`;
 }
+function homeValue(group, track) { return group + ':' + encodeURIComponent(entryKey(track)); }
 function homeSelection(value) {
-  const [group,index] = String(value).split(':');
+  const separator = String(value).indexOf(':');
+  const group = String(value).slice(0, separator);
   const queue = homeGroups[group];
-  return Array.isArray(queue) && /^\d+$/.test(index) && queue[+index] ? {track:queue[+index],queue:[...queue]} : null;
+  if (!Array.isArray(queue)) return null;
+  let key;
+  try { key = decodeURIComponent(String(value).slice(separator + 1)); } catch { return null; }
+  const track = queue.find(item => entryKey(item) === key);
+  return track ? { track, queue: [...queue] } : null;
+}
+function qualityBadge(track) {
+  const evidence = track.qualityEvidence;
+  if (!evidence) return discovery.category === 'hires' ? '<span class="quality-badge">音质待核验</span>' : '';
+  const fresh = evidence.expiresAt > Date.now();
+  const status = fresh ? evidence.status : 'unknown';
+  const label = status === 'hires' && evidence.playable === true ? 'Hi-Res 可用'
+    : status === 'lossless' && evidence.playable === true ? '无损可用'
+    : status === 'lossy' ? (evidence.label || '普通音质')
+    : status === 'unsupported' ? '设备暂不支持' : '音质待核验';
+  const detail = status === 'hires' ? '平台 Hi-Res 档位，已确认 FLAC 音轨与设备解码支持；采样率和位深未另行确认。'
+    : status === 'unknown' ? '尚未确认当前账号可用音质，播放时会重新解析。' : evidence.label || label;
+  return `<span class="quality-badge ${status === 'hires' && evidence.playable === true ? 'verified' : ''}" title="${esc(detail)}">${esc(label)}</span>`;
+}
+function openOfficialSource(id) {
+  if (window.biliNative?.openSource) {
+    void Promise.resolve(window.biliNative.openSource(id)).catch(error => notify(error.message || '无法打开音源官网'));
+    return;
+  }
+  const url = Object.hasOwn(officialLinks, id) && officialLinks[id];
+  if (typeof url !== 'string' || !url.startsWith('https://')) { notify('官网入口暂时无法读取，请稍后重试。'); return; }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+function hifiPage() {
+  const ios = window.biliNative?.platform === 'ios';
+  return `<div class="hifi-page">${viewTitle('Hi-Fi 音源','优先听真实可用的好音质。')}
+    <article class="hifi-feature"><span class="hifi-symbol">${icon('wave',28)}</span><div><span class="feature-kicker">优先推荐</span><h2>哔哩哔哩 Hi-Res</h2><p>先发现音乐，再核验当前可用音轨。支持 Hi-Res 的曲目优先展示，播放时重新确认实际音质。</p></div><button class="primary" ${action('hifi-bili')}>发现 Hi-Res ${icon('chevron',14)}</button></article>
+    <section class="hifi-section"><div class="section-head"><div><h2>无损电台</h2><p>Radio Paradise · 官方 FLAC · 16 bit / 44.1 kHz</p></div><button class="text-action" ${action('official-source','radioparadise')}>音源官网 ${icon('upRight',13)}</button></div><p class="hifi-note">连续播放的 CD 级无损电台，无法拖动进度，也不属于 Hi-Res。${ios ? ' iOS 原生版请使用官方页面收听。' : ' 选一个频道，直接开始收听。'}</p>
+    <div class="radio-grid">${RADIO_STATIONS.map(station => `<article class="radio-card"><div class="radio-heading"><span class="radio-mark">${icon('wave',24)}</span><span class="radio-live">LIVE</span></div><h3>${esc(station.title)}</h3><p>${esc(station.description)}</p><small>FLAC · 16 bit / 44.1 kHz</small><button class="secondary" ${ios ? action('official-source','radioparadise') : action('radio-play',station.stationId)}>${icon(ios ? 'upRight' : 'play',14)} ${ios ? '在官网收听' : '收听电台'}</button></article>`).join('')}</div></section>
+    <section class="hifi-section"><div class="section-head"><h2>更多曲库</h2></div><div class="hifi-catalog-grid"><button class="hifi-catalog" ${action('source','kuwo')}>${icon('kuwo',24)}<span><strong>酷我音乐</strong><small>已接入 · 优先请求可用无损音轨</small></span>${icon('chevron',14)}</button><button class="hifi-catalog" ${action('source','netease')}>${icon('netease',24)}<span><strong>网易云音乐</strong><small>已接入 · 实际音质依曲目权限而定</small></span>${icon('chevron',14)}</button></div></section>
+    <section class="hifi-section"><div class="section-head"><h2>官方订阅音源</h2><span>外部访问</span></div><div class="official-source-grid">${[['qobuz','Qobuz','流媒体与数字专辑商店'],['tidal','TIDAL','订阅音乐服务'],['qqmusic','QQ 音乐','国内音乐曲库']].map(([id,title,description]) => `<button class="official-source" ${action('official-source',id)}><strong>${title}${icon('upRight',14)}</strong><small>${description}</small><span>前往官网</span></button>`).join('')}</div><p class="hifi-note">这些平台尚未接入本应用播放器，收听需使用官方服务及相应账号权益；可用范围因地区而异。</p></section>
+    <p class="hifi-footnote">无损格式、Hi-Res 档位与声卡输出规格是不同概念。DSP 和系统音频设置可能改变输出采样率；界面不会把音源格式当作硬件直通保证。</p></div>`;
 }
 function empty(title, subtitle, button = '') {
   return `<div class="empty"><span class="empty-icon">${icon('album', 30)}</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${button}</div>`;
@@ -407,7 +450,7 @@ function renderView() {
   const focused = content.contains(document.activeElement) ? { ...document.activeElement.dataset } : null;
   sidebar();
   $('#crumb').innerHTML = state.page === 'home' ? `<button ${action('nav','home')}>音乐馆</button>` :
-    `<button ${action('nav', ['home','search'].includes(state.page) ? 'home' : 'library')}>${['home', 'search'].includes(state.page) ? '音乐馆' : '资料库'}</button>${icon('chevron', 12)}<strong>${esc(labels[state.page])}</strong>`;
+    `<button ${action('nav', ['home','search','hifi'].includes(state.page) ? 'home' : 'library')}>${['home', 'search', 'hifi'].includes(state.page) ? '音乐馆' : '资料库'}</button>${icon('chevron', 12)}<strong>${esc(labels[state.page])}</strong>`;
   rows = [];
   entityCards = [];
   $('#content').innerHTML =
@@ -417,7 +460,7 @@ function renderView() {
         ? searchPage()
         : state.page === 'entity'
           ? entityPage()
-          : libraryPage(state.page);
+          : state.page === 'hifi' ? hifiPage() : libraryPage(state.page);
   content.scrollTop = scroll;
   if (focused?.action) [...content.querySelectorAll('[data-action]')].find(el => el.dataset.action === focused.action && el.dataset.value === focused.value)?.focus({preventScroll:true});
 }
@@ -596,6 +639,7 @@ function currentTime() {
   return Number.isFinite(engine.media.currentTime) ? engine.media.currentTime : 0;
 }
 function duration() {
+  if (state.current?.isLive) return 0;
   return engine.stream && Number.isFinite(engine.media.duration)
     ? engine.media.duration
     : state.current?.duration || 0;
@@ -608,7 +652,7 @@ function queueList() {
   return `<ol class="queue-list">${state.queue
     .map((t, i) => {
       const selected = entryKey(t) === entryKey(state.current);
-      return `<li><button class="${selected ? 'current' : ''}" ${action('queue-track', i)}><span class="queue-num">${selected ? icon('wave', 16) : String(i + 1).padStart(2, '0')}</span><span>${esc(t.title)}</span><small>${fmt(t.duration)}</small></button></li>`;
+      return `<li><button class="${selected ? 'current' : ''}" ${action('queue-track', i)}><span class="queue-num">${selected ? icon('wave', 16) : String(i + 1).padStart(2, '0')}</span><span>${esc(t.title)}</span><small>${t.isLive ? '直播' : fmt(t.duration)}</small></button></li>`;
     })
     .join('')}</ol>`;
 }
@@ -731,7 +775,7 @@ function playbackFeedback() {
   return `<div class="play-feedback"><span class="play-message" role="status">${esc(state.message)}</span>${controls}</div>`;
 }
 function seekBar() {
-  return `<div class="seekbar"><span data-clock>${fmt(currentTime())}</span><input type="range" data-seek min="0" max="${duration() || 0}" step="0.1" value="${currentTime()}" aria-label="播放进度"><span data-length>${fmt(duration())}</span></div>`;
+  return `<div class="seekbar"><span data-clock>${fmt(currentTime())}</span><input type="range" data-seek min="0" max="${duration() || 0}" step="0.1" value="${currentTime()}" aria-label="播放进度"><span data-length>${state.current?.isLive ? '直播' : fmt(duration())}</span></div>`;
 }
 function renderTransport() {
   const t = state.current;
@@ -745,13 +789,13 @@ function refreshTime() {
   const pos = currentTime(),
     len = duration();
   document.querySelectorAll('[data-clock]').forEach((el) => (el.textContent = fmt(pos)));
-  document.querySelectorAll('[data-length]').forEach((el) => (el.textContent = fmt(len)));
+  document.querySelectorAll('[data-length]').forEach((el) => (el.textContent = state.current?.isLive ? '直播' : fmt(len)));
   document
     .querySelectorAll('[data-remaining]')
-    .forEach((el) => (el.textContent = '−' + fmt(Math.max(0, len - pos))));
+    .forEach((el) => (el.textContent = state.current?.isLive ? '直播' : '−' + fmt(Math.max(0, len - pos))));
   document.querySelectorAll('[data-seek]').forEach((el) => {
     el.max = len || 0;
-    el.disabled = !engine.stream;
+    el.disabled = !engine.stream || state.current?.isLive === true;
     if (el !== document.activeElement || !el.matches(':active')) el.value = pos;
     el.style.setProperty('--played', (len ? Math.min(100, (pos / len) * 100) : 0) + '%');
   });
@@ -822,6 +866,11 @@ async function loadLyrics(t, id) {
 }
 async function playTrack(t, queue, resume) {
   if (!t) return;
+  if (t.source === 'radioparadise' && window.biliNative?.platform === 'ios') {
+    notify('iOS 原生版暂不支持连续电台流，请在官方页面收听。');
+    openOfficialSource('radioparadise');
+    return;
+  }
   const id = ++playToken;
   engine.stop();
   engine.activate();
@@ -1074,6 +1123,18 @@ function updateCustom() {
 }
 function dispatch(act, val) {
   switch (act) {
+    case 'hifi-bili':
+      void discovery.select('hires');
+      navigate('home');
+      break;
+    case 'official-source':
+      openOfficialSource(val);
+      break;
+    case 'radio-play': {
+      const station = RADIO_STATIONS.find(item => item.stationId === val);
+      if (station) void playTrack(station, RADIO_STATIONS);
+      break;
+    }
     case 'discover-category':
       if (!DISCOVERY_CATEGORIES.some(item => item.id === val)) break;
       void discovery.select(val);
@@ -1385,7 +1446,7 @@ document.addEventListener('input', ({ target: el }) => {
   }
 });
 document.addEventListener('change', ({ target: el }) => {
-  if (el.matches('[data-seek]') && engine.stream) engine.seek(+el.value);
+  if (el.matches('[data-seek]') && engine.stream && !state.current?.isLive) engine.seek(+el.value);
   if (el.matches('[data-dsp="enabled"],[data-dsp="limiter"]'))
     engine.setDSP({ [el.dataset.dsp]: el.checked });
   if (el.matches('[data-dsp="preset"]') && el.value !== 'custom') {

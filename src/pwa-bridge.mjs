@@ -1,3 +1,5 @@
+import { adaptQualityForDevice } from './audio-quality.mjs';
+
 // Native shells install their own bridge before the first application script.
 export function installWebBridge() {
   if (window.biliNative || !/^https?:$/.test(window.location?.protocol || '')) return;
@@ -53,6 +55,10 @@ export function installWebBridge() {
     catalog[op] = async (...args) => (await post('catalog', { op, args })).result;
   }
   const audio = document.createElement('audio');
+  catalog.inspectQuality = async tracks => {
+    const { result } = await post('catalog', { op: 'inspectQuality', args: [tracks] });
+    return result.map(item => ({ ...item, qualityEvidence: adaptQualityForDevice(item.qualityEvidence, type => audio.canPlayType(type)) }));
+  };
   catalog.resolve = async (track) => {
     const { result } = await post('catalog', { op: 'resolve', args: [track] });
     return result.filter((stream) => {

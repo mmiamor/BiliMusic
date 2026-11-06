@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { catalog, createSession } from '../provider-network.mjs';
 import { DISCOVERY_CATEGORIES } from '../../src/discovery-categories.mjs';
+import { dashQualityEvidence } from '../../src/audio-quality.mjs';
 
 function isolatedSession(providers) {
   const session = createSession(async () => { throw new Error('This test must never access the network.'); });
@@ -101,4 +102,71 @@ test('failed discovery leaves previously remembered tracks available and a later
   assert.equal(session.tracks.get(track.id), track);
   fail = false;
   assert.equal((await catalog(session, 'discover', ['covers', 2])).hasMore, false);
+});
+
+test('PWA quality inspection accepts at most six Bilibili BV identities and validates the entire batch before dispatch', async () => {
+  const calls = [];
+  const session = isolatedSession({ async inspectQuality(rows) { calls.push(rows); return []; } });
+  const rows = Array.from({ length: 6 }, (_, index) => ({ source: 'bilibili', bvid: track.bvid, page: index + 1 }));
+  await catalog(session, 'inspectQuality', [rows]);
+  assert.equal(calls[0].length, 6);
+  for (const [index, value] of calls[0].entries()) {
+    assert.deepEqual(value, { ...rows[index], id: 'bilibili:' + track.bvid + ':p' + (index + 1) });
+  }
+  const invalidRows = [
+    null, {}, { ...track, source: 'kuwo', rid: '42' }, { ...track, source: 'netease', rid: '42' },
+    { source: 'radioparadise', stationId: 'main' }, { source: 'bilibili', au: '42' },
+    { ...track, au: '42' }, { ...track, bvid: 'https://evil.test/video' }, { ...track, bvid: 'BV1GJ411x7h7/extra' },
+    { ...track, page: 0 }, { ...track, page: -1 }, { ...track, page: '2' },
+    { ...track, page: 1.5 }, { ...track, page: 1001 },
+  ];
+  for (const invalid of invalidRows) {
+    await assert.rejects(catalog(session, 'inspectQuality', [[rows[0], invalid]]), { status: 400 });
+  }
+  for (const args of [[], [{}], [null], [rows, {}], [[...rows, rows[0]]]]) {
+    await assert.rejects(catalog(session, 'inspectQuality', args), { status: 400 });
+  }
+  assert.equal(calls.length, 1);
+  assert.equal(session.media.size, 0);
+});
+
+test('PWA quality inspection discards caller URLs, quality claims and CID while using the current authoritative discovery track', async () => {
+  let current = track;
+  const calls = [];
+  const session = isolatedSession({
+    async discover() { return { tracks: [current], hasMore: false }; },
+    async inspectQuality(rows) { calls.push(rows); return []; },
+  });
+  const supplied = { ...track, id: 'forged-id', cid: '999', title: 'forged title',
+    url: 'http://127.0.0.1/private', headers: { Cookie: 'forged-cookie' }, quality: '24 bit / 192 kHz',
+    qualityEvidence: { status: 'hires', playable: true, expiresAt: Number.MAX_SAFE_INTEGER } };
+  await catalog(session, 'inspectQuality', [[supplied]]);
+  assert.deepEqual(calls[0][0], { source: 'bilibili', bvid: track.bvid, page: 1, id: track.id });
+  await catalog(session, 'discover', ['hires', 1]);
+  await catalog(session, 'inspectQuality', [[supplied]]);
+  assert.equal(calls[1][0], track);
+  current = { ...track, title: '平台更新后的曲名', cid: '141895442' };
+  await catalog(session, 'discover', ['hires', 1]);
+  await catalog(session, 'inspectQuality', [[supplied]]);
+  assert.equal(calls[2][0], current);
+  assert.equal(session.media.size, 0);
+});
+
+test('PWA quality results contain provider evidence without private media addresses or a server-side playback promise', async () => {
+  const qualityEvidence = dashQualityEvidence({ flac: { audio: {
+    id: 30251, codecs: 'fLaC', mimeType: 'audio/mp4',
+    baseUrl: 'https://upos-sz.bilivideo.com/audio.m4s?signature=private-fixture',
+    backupUrl: ['https://upos-sz.bilivideo.com/backup.m4s?signature=private-backup'],
+  } } });
+  const session = isolatedSession({ async inspectQuality(rows) { return rows.map(row => ({ id: row.id, qualityEvidence })); } });
+  const result = await catalog(session, 'inspectQuality', [[track]]);
+  assert.equal(result[0].id, track.id);
+  assert.equal(result[0].qualityEvidence.formatStatus, 'hires');
+  assert.equal(result[0].qualityEvidence.status, 'unknown');
+  assert.equal(result[0].qualityEvidence.playable, null);
+  assert.equal(result[0].qualityEvidence.reason, 'device-unchecked');
+  assert.equal(result[0].qualityEvidence.sampleRate, undefined);
+  assert.equal(result[0].qualityEvidence.bitDepth, undefined);
+  assert.doesNotMatch(JSON.stringify(result), /https?:|private-fixture|private-backup|signature|baseUrl|backupUrl/);
+  assert.equal(session.media.size, 0);
 });

@@ -27,7 +27,7 @@ test('DASH keeps lossless first, prefers origin CDN and filters unsupported code
 test('Hi-Res 30251 respects the served codec and FLAC-in-MP4 decoding support', () => {
   const dash = { flac: { display: true, audio: null }, audio: [
     { id: 30280, codecs: 'mp4a.40.2', bandwidth: 360000, baseUrl: 'https://cdn.bilivideo.com/normal' },
-    { id: 30251, bandwidth: 200000, baseUrl: 'https://cdn.bilivideo.com/hires' }
+    { id: 30251, codecs: 'fLaC', bandwidth: 200000, baseUrl: 'https://cdn.bilivideo.com/hires' }
   ] };
   const full = dashStreams(dash, () => 'probably');
   assert.deepEqual(full.map(s => s.lossless), [true, false]);
@@ -37,6 +37,11 @@ test('Hi-Res 30251 respects the served codec and FLAC-in-MP4 decoding support', 
   const contradictory = { ...dash.audio[1], codecs: 'mp4a.40.2' };
   assert.equal(dashStreams({ flac: { display: true, audio: contradictory } })[0].lossless, false);
   assert.deepEqual(dashStreams({ flac: { display: true } }), []);
+  const unconfirmed = { ...dash.audio[1], codecs: undefined };
+  const [inferred] = dashStreams({ flac: { audio: unconfirmed } }, () => 'probably');
+  assert.equal(inferred.lossless, false);
+  assert.equal(inferred.quality, '音质待确认');
+  assert.equal(inferred.codec, 'fLaC'); // Preserve the decoder fallback, without claiming verified FLAC.
 });
 
 test('resolving again after a login uses fresh WBI keys and the Hi-Res tier the session receives', async () => {
@@ -56,7 +61,7 @@ test('resolving again after a login uses fresh WBI keys and the Hi-Res tier the 
       assert.equal(url.searchParams.get('fnval'), '4048');
       assert.match(url.searchParams.get('w_rid'), /^[0-9a-f]{32}$/);
       result.data.dash = { audio: [{ id: 30280, baseUrl: 'https://cdn.bilivideo.com/normal' }] };
-      if (entitled) result.data.dash.flac = { display: true, audio: { id: 30251, baseUrl: 'https://cdn.bilivideo.com/flac' } };
+      if (entitled) result.data.dash.flac = { display: true, audio: { id: 30251, codecs: 'fLaC', baseUrl: 'https://cdn.bilivideo.com/flac' } };
     }
     return {status: 200, body: JSON.stringify(result)};
   });

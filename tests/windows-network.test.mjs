@@ -59,3 +59,21 @@ test('Windows provider requests still reject non-HTTPS, unapproved, credential-b
   }
   assert.equal(calls.length, 0);
 });
+
+test('Windows radio accepts only the four official HTTPS stream paths and retains the Ogg MIME', () => {
+  const { checkedSource } = nativeNetwork();
+  for (const path of ['flac', 'mellow-flac', 'rock-flac', 'global-flac']) {
+    const source = checkedSource({ url: 'https://stream.radioparadise.com/' + path, mimeType: 'audio/ogg' });
+    assert.equal(source.mimeType, 'audio/ogg');
+    assert.equal(source.url, 'https://stream.radioparadise.com/' + path);
+  }
+  for (const url of ['http://stream.radioparadise.com/flac', 'https://stream.radioparadise.com/other',
+    'https://stream.radioparadise.com/flac?url=http://127.0.0.1', 'https://stream.radioparadise.com/flac#track',
+    'https://stream.radioparadise.com.evil.test/flac', 'https://sub.stream.radioparadise.com/flac',
+    'https://user:secret@stream.radioparadise.com/flac', 'https://stream.radioparadise.com:444/flac',
+    'https://stream.radioparadise.com:443/flac', 'https://STREAM.radioparadise.com/flac',
+    'https://stream.radioparadise.com/other/../flac', 'https://stream.radioparadise.com/flac?',
+    'https://stream.radioparadise.com/flac#']) {
+    assert.throws(() => checkedSource({ url }), /平台范围/);
+  }
+});
