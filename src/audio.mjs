@@ -1,15 +1,6 @@
-// Graphic EQ centers, Q and music presets follow AppleMusic/src/inject/dsp.js.
-export const EQ_BANDS = Object.freeze([31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]);
-export const DSP_PRESETS = Object.freeze([
-  ['flat', '平直', 0, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
-  ['vocal', '人声', -3.5, [-1, -1, -1, -2, -1, 1, 3, 1.5, 0, 0]],
-  ['bass', '低音增强', -5.5, [5, 4.5, 3, 1, 0, 0, 0, 0, 0, 0]],
-  ['pop', '流行', -5, [-1, 0, 2, 3.5, 4, 3, 1.5, 0, -0.5, -1]],
-  ['rock', '摇滚', -5, [4.5, 3.5, 2, 0.5, -1, -1, 0.5, 2.5, 3.5, 4]],
-  ['jazz', '爵士', -4, [3, 2, 1, 2, -1.5, -1.5, 0, 1, 2.5, 3]],
-  ['classical', '古典', -4.5, [4, 3, 2, 1.5, -1, -1, 0, 2, 3, 3.5]],
-  ['electronic', '电子', -5.5, [4.5, 4, 1, 0, -2, 2, 1, 1.5, 4, 4.5]]
-].map(([id, name, preamp, bands]) => Object.freeze({ id, name, preamp, bands: Object.freeze(bands) })));
+import { EQ_BANDS, DSP_PRESETS, normalizeDSP, patchDSP, numberIn } from './dsp-model.mjs';
+import { createDSPGraph } from './dsp-graph.mjs';
+export { EQ_BANDS, DSP_PRESETS } from './dsp-model.mjs';
 
 const SETTINGS_KEY = 'bilimusic.audio.v1';
 // Ten milliseconds of silent mono PCM. WebKit grants playback to the media element
@@ -20,22 +11,6 @@ function isAppleWebPlayer() {
   return globalThis.biliNative?.platform === 'pwa' && nav &&
     (/iPad|iPhone|iPod/.test(nav.userAgent) || (nav.platform === 'MacIntel' && nav.maxTouchPoints>1));
 }
-const gainFromDb = db => 10 ** (db / 20);
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-function numberIn(value, min, max, fallback) {
-  const n = Number(value);
-  return value != null && Number.isFinite(n) ? clamp(n, min, max) : fallback;
-}
-
-function settings(value = {}) {
-  value ??= {};
-  const bands = EQ_BANDS.map((_, i) => numberIn(value.bands?.[i], -12, 12, 0));
-  const preamp = numberIn(value.preamp, -24, 12, 0);
-  const preset = DSP_PRESETS.find(p => p.preamp === preamp && p.bands.every((gain, i) => gain === bands[i]));
-  return { enabled: value.enabled !== false, preset: preset?.id || 'custom', preamp, bands, limiter: value.limiter === true };
-}
-
 function readSettings() {
   try { return JSON.parse(globalThis.localStorage?.getItem(SETTINGS_KEY)) || {}; }
   catch { return {}; }
@@ -52,62 +27,6 @@ export function activeLyricIndex(lines, seconds) {
     else end = mid;
   }
   return start - 1;
-}
-
-function smooth(param, value, now) {
-  param.cancelScheduledValues(now);
-  param.setTargetAtTime(value, now, 0.012);
-}
-
-// The media element is attached to Web Audio once. EQ bypass keeps master volume active.
-function makeGraph(context, media) {
-  const input = context.createMediaElementSource(media);
-  const preamp = context.createGain();
-  const filters = EQ_BANDS.map(hz => {
-    const node = context.createBiquadFilter();
-    node.type = 'peaking';
-    node.frequency.value = Math.min(hz, context.sampleRate * 0.4995);
-    node.Q.value = 1.41;
-    return node;
-  });
-  const compressor = context.createDynamicsCompressor();
-  compressor.threshold.value = -1;
-  compressor.knee.value = 0;
-  compressor.ratio.value = 20;
-  compressor.attack.value = 0.001;
-  compressor.release.value = 0.08;
-  // Compensate for Web Audio compressor makeup gain as in the desktop engine.
-  const compensation = context.createGain();
-  compensation.gain.value = gainFromDb(0.6 * -1 * (1 - 1 / 20));
-  const master = context.createGain();
-  let last = preamp;
-  for (const filter of filters) {
-    last.connect(filter);
-    last = filter;
-  }
-  compressor.connect(compensation);
-  compensation.connect(master);
-  master.connect(context.destination);
-  let route;
-  return {
-    apply(dsp, volume) {
-      const now = context.currentTime;
-      smooth(preamp.gain, gainFromDb(dsp.preamp), now);
-      filters.forEach((filter, index) => smooth(filter.gain, dsp.bands[index], now));
-      smooth(master.gain, volume, now);
-      const nextRoute = dsp.enabled ? (dsp.limiter ? 'limit' : 'eq') : 'direct';
-      if (route === nextRoute) return;
-      input.disconnect();
-      last.disconnect();
-      if (dsp.enabled) {
-        input.connect(preamp);
-        last.connect(dsp.limiter ? compressor : master);
-      } else {
-        input.connect(master);
-      }
-      route = nextRoute;
-    }
-  };
 }
 
 function abortError() { return new DOMException('已切换播放请求', 'AbortError'); }
@@ -144,6 +63,11 @@ export class AudioEngine extends EventTarget {
   #wantsPlay = false;
   #resumeAt = 0;
   #gesturePrimed = false;
+  #contextOptions;
+  #contextError = '';
+  #sinkError = '';
+  #sinkRequest = 0;
+  #sinkPending = Promise.resolve();
 
   constructor(media = new Audio()) {
     super();
@@ -151,8 +75,8 @@ export class AudioEngine extends EventTarget {
     media.preload = 'auto';
     media.setAttribute('playsinline', '');
     const saved = readSettings();
-    this.#dsp = settings(saved.dsp);
-    this.#volume = numberIn(saved.volume, 0, 1, 0.8);
+    this.#dsp = normalizeDSP(saved?.dsp);
+    this.#volume = numberIn(saved?.volume, 0, 1, 0.8);
     media.addEventListener('loadedmetadata', () => {
       if (this.#resumeAt > 0) this.seek(this.#resumeAt);
     });
@@ -167,12 +91,54 @@ export class AudioEngine extends EventTarget {
     });
   }
 
-  get dsp() { return { ...this.#dsp, bands: [...this.#dsp.bands] }; }
+  get dsp() { return structuredClone(this.#dsp); }
   get volume() { return this.#volume; }
   get stream() { return this.#stream; }
+  get dspStatus() {
+    const active = this.#graph?.status || { worklet: 'idle', sampleRate: null, baseLatency: null, outputLatency: null, preampDb: null, maxBoost: null, chain: [], contextState: 'idle' };
+    return { ...active, sinkSupported: Boolean(this.#context?.setSinkId || (globalThis.AudioContext || globalThis.webkitAudioContext)?.prototype?.setSinkId), sinkError: this.#sinkError, contextError: this.#contextError,
+      reloadRequired: Boolean(this.#contextOptions && (this.#contextOptions.sampleRate !== this.#dsp.output.sampleRate || this.#contextOptions.latencyHint !== this.#dsp.output.latencyHint)),
+      sinkId: typeof this.#context?.sinkId === 'string' ? this.#context.sinkId : '',
+    };
+  }
+  getMeters() {
+    return this.#graph?.getMeters() || { available: false, peak: null, rms: null, tp: null, corr: null, clips: 0, momentary: null, shortTerm: null, integrated: null, lra: null, tpMax: null, limiterReduction: 0 };
+  }
+  resetMeters() { this.#graph?.resetMeters(); }
+  async listOutputDevices() {
+    const devices = await globalThis.navigator?.mediaDevices?.enumerateDevices?.();
+    return (devices || []).filter(d => d.kind === 'audiooutput' && d.deviceId && d.deviceId !== 'default').map((d, index) => ({ id: d.deviceId, label: d.label || '音频输出 ' + (index + 1) }));
+  }
+  async setOutputDevice(id) {
+    if (typeof id !== 'string' || id.length > 512) throw new Error('无效的输出设备。');
+    const request = ++this.#sinkRequest;
+    if (!this.#context) await this.unlock();
+    if (!this.#context?.setSinkId) {
+      this.#sinkError = '当前设备不支持在应用内切换输出，请使用系统声音设置。';
+      throw new Error(this.#sinkError);
+    }
+    try {
+      const pending = this.#sinkPending.catch(() => {}).then(async () => {
+        if (request === this.#sinkRequest) await this.#context.setSinkId(id);
+      });
+      this.#sinkPending = pending;
+      await pending;
+      if (request !== this.#sinkRequest) return;
+      this.#sinkError = '';
+      this.setDSP({ output: { sinkId: id } });
+    } catch (error) {
+      if (request === this.#sinkRequest) {
+        this.#sinkError = '无法切换到该输出设备，请检查连接或使用系统默认输出。';
+        this.dispatchEvent(new Event('dspchange'));
+      }
+      throw new Error(this.#sinkError || error.message);
+    }
+  }
+
 
   #update() {
     this.#graph?.apply(this.#dsp, this.#volume);
+    if (!this.#graph) this.media.volume = this.#volume;
     try { globalThis.localStorage?.setItem(SETTINGS_KEY, JSON.stringify({ dsp: this.#dsp, volume: this.#volume })); }
     catch { /* Playback still works if persistence is unavailable. */ }
   }
@@ -180,12 +146,13 @@ export class AudioEngine extends EventTarget {
   applyPreset(id) {
     const preset = DSP_PRESETS.find(p => p.id === id);
     if (!preset) return this.dsp;
-    return this.setDSP({ enabled: true, preamp: preset.preamp, bands: preset.bands });
+    return this.setDSP({ enabled: true, preset: preset.id, preamp: preset.preamp, autoPreamp: preset.autoPreamp, eq: { enabled: true, filters: preset.filters } });
   }
 
   setDSP(patch) {
-    this.#dsp = settings({ ...this.#dsp, ...patch });
+    this.#dsp = patchDSP(this.#dsp, patch);
     this.#update();
+    this.dispatchEvent(new Event('dspchange'));
     return this.dsp;
   }
 
@@ -214,11 +181,21 @@ export class AudioEngine extends EventTarget {
     if (!this.#context) {
       const AudioContext = globalThis.AudioContext || globalThis.webkitAudioContext;
       if (!AudioContext) throw new Error('此设备缺少 Web Audio 播放支持');
-      this.#context = new AudioContext({ latencyHint: 'playback' });
+      const output = this.#dsp.output;
+      const options = { latencyHint: output.latencyHint };
+      if (output.sampleRate) options.sampleRate = output.sampleRate;
+      try { this.#context = new AudioContext(options); }
+      catch (error) {
+        if (!output.sampleRate) throw error;
+        this.#contextError = '所选采样率不可用，已使用系统默认采样率。';
+        this.#context = new AudioContext({ latencyHint: output.latencyHint });
+      }
+      this.#contextOptions = { ...output };
+      if (output.sinkId && this.#sinkRequest === 0) void this.setOutputDevice(output.sinkId).catch(() => {});
     }
     if (this.#context.state !== 'running') await this.#context.resume();
     if (!this.#graph && this.#context.state === 'running') {
-      this.#graph = makeGraph(this.#context, this.media);
+      this.#graph = createDSPGraph(this.#context, this.#context.createMediaElementSource(this.media), { onStatus: () => this.dispatchEvent(new Event('dspchange')) });
       this.media.volume = 1;
       this.#graph.apply(this.#dsp, this.#volume);
     }

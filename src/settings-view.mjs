@@ -80,7 +80,7 @@ export function renderSettings(
           <label class="settings-toggle" for="settings-dsp-enabled"><input id="settings-dsp-enabled" type="checkbox" role="switch" data-setting="dsp-enabled" aria-describedby="settings-dsp-hint" ${dsp.enabled !== false ? 'checked' : ''}><span aria-hidden="true"></span></label>
         </div>
         <div class="settings-row">
-          <div class="settings-row-copy"><h3>调音台</h3><p>调整均衡器、前级增益和输出限幅。</p></div>
+          <div class="settings-row-copy"><h3>调音台</h3><p>参数均衡、耳机 Crossfeed、声道与输出限幅。</p></div>
           <button type="button" class="settings-button" ${action('dsp')}>${icon('sliders', 16)} 打开调音台 ${icon('chevron', 13)}</button>
         </div>
       </div>

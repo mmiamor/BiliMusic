@@ -1,0 +1,9 @@
+export function renderAdmin(state,{esc,action}) {
+  const summary=state.summary||{},disabled=state.busy?'disabled':'';
+  return `<div class="collection-page admin-page"><header class="collection-heading"><div><p class="collection-eyebrow">LIBRARY ADMINISTRATION</p><h1>数据库管理</h1><p>管理站点账号，查看歌单与音乐收藏的保存情况。</p></div><button class="secondary" ${action('admin-refresh')} ${disabled}>刷新数据</button></header>
+    ${state.error?`<p class="collection-message is-error" role="alert">${esc(state.error)}</p>`:''}${state.message?`<p class="collection-message" role="status">${esc(state.message)}</p>`:''}${state.loading?'<p role="status">正在读取数据库…</p>':''}
+    <div class="admin-stat-grid">${[['users','账号'],['playlists','歌单'],['tracks','歌单曲目'],['activeSessions','有效会话']].map(([key,label])=>`<div><strong>${summary[key]??'—'}</strong><span>${label}</span></div>`).join('')}</div>
+    <h2>站点账号</h2><table class="admin-users"><thead><tr><th>用户名</th><th>权限</th><th>创建时间</th></tr></thead><tbody>${(state.users||[]).map(user=>`<tr><td>${esc(user.username)}</td><td>${user.role==='admin'?'管理员':'成员'}</td><td>${Number.isFinite(Number(user.createdAt))?new Date(Number(user.createdAt)).toLocaleDateString('zh-CN'):'—'}</td></tr>`).join('')}</tbody></table>
+    <form class="admin-form" data-admin-create><h2>添加账号</h2><label>用户名<input name="username" autocomplete="off" maxlength="64" required ${disabled}></label><label>初始密码<input type="password" name="password" autocomplete="new-password" minlength="8" maxlength="128" required ${disabled}></label><label>权限<select name="role" ${disabled}><option value="user">成员 · 管理自己的歌单</option><option value="admin">管理员 · 管理站点账号</option></select></label><button type="submit" class="primary" ${disabled}>${state.busy?'正在创建…':'创建账号'}</button></form>
+    <p class="collection-message">数据库占用 ${Number.isFinite(summary.databaseBytes)?(summary.databaseBytes/1024/1024).toFixed(2)+' MB':'—'}。歌曲保留音源标识与歌单顺序，播放时获取可用音轨。</p></div>`;
+}

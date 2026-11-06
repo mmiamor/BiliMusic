@@ -4,6 +4,13 @@ BiliMusic 支持哔哩哔哩、酷我、网易云音乐和 Radio Paradise 无损
 
 仓库：<https://github.com/mmiamor/BiliMusic>
 
+## 0.4.0
+
+- 按 [MMiAmor](https://mmiamor.website/) 的纸白、墨黑、赭红与衬线标题重新统一界面，包含登录、发现、播放器、歌单、设置和 DSP；保留无动画与右侧窗口控制。
+- DSP 按原 Apple Music HiFi 重建：24 段参数 EQ、频响曲线、AutoEQ/APO 导入导出、个人预设、自动前级、Crossfeed、声道矩阵、前视限幅与实际音频计量。旧十段设置自动迁移，旁通保留主音量。详见 [DSP 说明](docs/dsp-rebuild.md)。
+- 网页版提供独立音乐账号登录；SQLite 保存账号、会话与歌单。管理员可查看数据库统计、账号列表和创建成员，初始账号通过服务器私有配置初始化。
+- 新增歌单创建、重命名、描述、曲目加入/移除/排序和整单播放。网页版登录后保存在账号；原生应用保存在本机。详见 [账号与歌单](docs/accounts-playlists.md)。
+
 ## 0.3.3
 
 - Windows 窗口按钮移到右上角，顺序为最小化、最大化/还原、关闭。浅色界面保持无动画。
@@ -30,11 +37,11 @@ BiliMusic 支持哔哩哔哩、酷我、网易云音乐和 Radio Paradise 无损
 - 播放详情采用双栏布局：左侧保留歌曲、封面、进度和主控制；右侧切换歌词、队列和十段 DSP。小窗口改为纵向布局。
 - 修复 Windows 读取哔哩哔哩合集时的 `net::ERR_BLOCKED_BY_CLIENT`，保留平台会话和域名白名单。
 
-本仓库是当前开发源码，0.3.3 尚未更新到公开站点。界面取舍见 [设置页设计](docs/settings-design.md)、[发现页设计](docs/discovery-design.md) 与 [播放页设计](docs/player-design.md)，可下载 [发现页交互原型](docs/discovery-prototype.html) 后本地打开。
+本仓库是当前开发源码，服务器部署需单独确认。早期界面取舍见 [设置页设计](docs/settings-design.md)、[发现页设计](docs/discovery-design.md) 与 [播放页设计](docs/player-design.md)。
 
-![Hi-Res 优先发现，音质按实际核验结果显示](docs/hifi-discovery.webp)
+![新版音乐账号登录页](docs/login-0.4.webp)
 
-[查看 Hi-Fi 音源页](docs/hifi-sources.webp)
+[查看新版发现页示例](docs/discovery-0.4.webp) · [歌单页示例](docs/playlists-0.4.webp) · [DSP 调音台](docs/dsp-0.4.webp)
 
 ## Windows
 
@@ -76,7 +83,7 @@ GitHub 的 **Actions → BiliMusic build → Run workflow** 可选择 `ios`、`w
 - 酷我支持歌曲、歌手、专辑与同步歌词。音质以平台实际返回的格式为准。
 - 网易云支持歌曲、歌手、专辑、歌词、热门与最新评论。播放限制不影响公开评论的查看。
 - 歌曲、作者、合集、歌手和专辑可分别收藏。歌词支持原文、可用注音/译文和点击定位。
-- DSP 提供十段均衡、预设、前级与限幅，设置实时作用于音频。
+- DSP 提供参数均衡、自动前级、耳机 Crossfeed、声道调整与限幅，设置实时作用于音频。
 
 ## PWA
 
@@ -89,6 +96,8 @@ npm test
 ```
 
 部署时需自行配置 HTTPS 域名、反向代理及服务管理。仓库不包含原运行环境的 DNS 凭据、主机配置或自动部署任务。
+
+服务器需要 Node.js 22.13 或更新版本。配置 `PUBLIC_ORIGIN`、`BILIMUSIC_DB_PATH` 和首次初始化用的 `BILIMUSIC_ADMIN_USERNAME` / `BILIMUSIC_ADMIN_PASSWORD`（或 `BILIMUSIC_ADMIN_PASSWORD_HASH`）。密码仅通过私有环境配置传入，已有数据库不会被初始化参数覆盖。数据库与备份必须放在发布目录之外，不能打包到静态资源或 GitHub。
 
 ## 项目结构
 

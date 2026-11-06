@@ -8,6 +8,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { boundedText, catalog, createSession, HttpError, mediaResponse } from './provider-network.mjs';
+import { createDatabase } from './database.mjs';
+import { createAuthRoutes } from './auth-routes.mjs';
 
 const assets = fileURLToPath(new URL('../src/', import.meta.url));
 const types = {
@@ -72,6 +74,7 @@ async function media(req, res, session, key, fetcher) {
   check(session.active < 6, 429, '请稍后重试。');
   const range = rangeHeader(req.headers.range);
   const controller = new AbortController();
+  session.controllers ||= new Set(); session.controllers.add(controller);
   const abort = () => controller.abort();
   // A header timeout bounds failed connections. The body can continue for a whole song.
   const timer = setTimeout(abort, 20000);
@@ -92,7 +95,7 @@ async function media(req, res, session, key, fetcher) {
     if (!remote.body || req.method === 'HEAD') { await remote.body?.cancel(); res.end(); return; }
     await pipeline(Readable.fromWeb(remote.body), res);
   } finally {
-    clearTimeout(timer); res.off('close', abort); controller.abort(); session.active--;
+    clearTimeout(timer); res.off('close', abort); controller.abort(); session.controllers.delete(controller); session.active--;
   }
 }
 
@@ -108,7 +111,7 @@ function rate(buckets, id, max, now) {
   check(++value.count <= max, 429, '请求过于频繁，请稍后重试。');
 }
 
-export function createHandler({ publicOrigin, fetcher = fetch }) {
+export function createHandler({ publicOrigin, fetcher = fetch, database }) {
   const origin = new URL(publicOrigin);
   const secure = origin.protocol === 'https:';
   check(secure || ['127.0.0.1','localhost','[::1]'].includes(origin.hostname) && origin.protocol === 'http:',
@@ -116,20 +119,32 @@ export function createHandler({ publicOrigin, fetcher = fetch }) {
   const sessions = new Map(), buckets = new Map();
   const cookieName = secure ? '__Host-bilimusic' : 'bilimusic_dev';
   const cookieFlags = '; Path=/; HttpOnly; SameSite=Lax' + (secure ? '; Secure' : '');
+  function destroySession(key, session) {
+    session.closed=true; session.pending=null; session.media.clear(); session.tracks.clear();
+    for(const controller of session.controllers||[])controller.abort();
+    void session.jar.removeAllCookies().catch(()=>{});
+    sessions.delete(key);
+  }
+  const authRoutes=createAuthRoutes({database,secure,rate:(id,max,now)=>rate(buckets,id,max,now),onSessionEnd:key=>{
+    if(!key)return;
+    for(const [id,session] of sessions)if(session.authKey===key)destroySession(id,session);
+  }});
   let lastSweep = 0, pendingRequests = 0;
   function cookieId(req) {
     const value = (req.headers.cookie || '').split(';').map(entry => entry.trim()).find(entry => entry.startsWith(cookieName + '='));
     return value?.slice(cookieName.length + 1) || '';
   }
-  function sessionFor(req, res, create, now, clientIP) {
+  function sessionFor(req, res, create, now, clientIP, auth) {
     const id = cookieId(req);
     let session = sessions.get(id);
-    if (session && now - session.lastSeen >= sessionTTL) { sessions.delete(id); session = null; }
+    if (session && now - session.lastSeen >= sessionTTL) { destroySession(id,session); session = null; }
+    if(database&&session&&(session.userId!==auth.user?.id||session.authKey!==auth.key))session=null;
     if (!session && create) {
       rate(buckets, 'new-session:' + clientIP, 24, now);
       check(sessions.size < 512, 503, '服务器繁忙，请稍后重试。');
       const key = randomBytes(32).toString('hex');
       session = createSession(fetcher);
+      if(database) {session.userId=auth.user.id;session.authKey=auth.key;}
       sessions.set(key, session);
       res.setHeader('Set-Cookie', cookieName + '=' + key + cookieFlags + '; Max-Age=86400');
     }
@@ -148,7 +163,7 @@ export function createHandler({ publicOrigin, fetcher = fetch }) {
       res.setHeader('Cache-Control', 'private, no-store');
       const now = Date.now();
       if (now - lastSweep > 60000) {
-        for (const [key, session] of sessions) if (session.lastSeen + sessionTTL <= now) sessions.delete(key);
+        for (const [key, session] of sessions) if (session.lastSeen + sessionTTL <= now) destroySession(key,session);
         for (const [key, bucket] of buckets) if (bucket.until <= now) buckets.delete(key);
         lastSweep = now;
       }
@@ -157,27 +172,43 @@ export function createHandler({ publicOrigin, fetcher = fetch }) {
       rate(buckets, 'addr:' + clientIP, 600, now);
       check(pendingRequests < 72, 503, '服务器繁忙，请稍后重试。');
       pendingRequests++; reserved = true;
+      const auth=authRoutes.read(req);
+      if(database&&!['/api/auth/status','/api/auth/login'].includes(pathname))check(auth.user,401,'请先登录 BiliMusic。');
       if (pathname.startsWith('/api/media/')) {
-        await media(req, res, sessionFor(req, res, false, now, clientIP), pathname.slice('/api/media/'.length), fetcher); return;
+        await media(req, res, sessionFor(req, res, false, now, clientIP,auth), pathname.slice('/api/media/'.length), fetcher); return;
       }
       check(req.method === 'POST', 405, '请使用 POST。');
       check(req.headers.origin === origin.origin && req.headers['sec-fetch-site'] !== 'cross-site', 403, '请求来源不匹配。');
       check(req.headers['content-type']?.split(';')[0].trim().toLowerCase() === 'application/json', 415, '请发送 JSON。');
-      const body = await boundedText(req, 48 * 1024);
+      const body = await boundedText(req, pathname==='/api/auth/login'?4096:pathname==='/api/playlists/add'?4*1024*1024:pathname.startsWith('/api/playlists/')?512*1024:48*1024);
       let input;
       try { input = JSON.parse(body); } catch { throw new HttpError(400, 'JSON 格式无效。'); }
       check(input && typeof input === 'object' && !Array.isArray(input), 400, '输入参数无效。');
+      // Uploading a body yields to other requests; logout may have revoked the
+      // credential after the early gate, before any data read or write occurs.
+      if(database) {
+        auth.user=database.authenticate(auth.token);
+        if(!['/api/auth/status','/api/auth/login'].includes(pathname))check(auth.user,401,'请先登录 BiliMusic。');
+      }
+      const handled=await authRoutes.handle(pathname,input,{auth,clientIP,now});
+      if(handled) {
+        if(database&&!pathname.startsWith('/api/auth/'))check(database.authenticate(auth.token)?.id===auth.user.id,401,'登录状态已失效，请重新登录。');
+        const cookies=handled.cookies||[];
+        if(handled.clearProvider)cookies.push(cookieName+'='+cookieFlags+'; Max-Age=0');
+        if(cookies.length)res.setHeader('Set-Cookie',cookies);
+        json(res,200,handled.value);return;
+      }
       const catalogRoute = pathname === '/api/catalog';
       const bootstrap = pathname === '/api/session';
       const action = pathname.match(/^\/api\/account\/(status|qr|poll|cancel|logout)$/)?.[1];
       check(catalogRoute || bootstrap || action, 404, '接口不存在。');
       if (action === 'logout') {
         const id = cookieId(req), old = sessions.get(id);
-        if (old) { old.pending = null; old.media.clear(); sessions.delete(id); }
+        if (old&&(!database||(old.userId===auth.user.id&&old.authKey===auth.key))) destroySession(id,old);
         res.setHeader('Set-Cookie', cookieName + '=' + cookieFlags + '; Max-Age=0');
         json(res, 200, { loggedIn: false, name: '' }); return;
       }
-      const session = sessionFor(req, res, catalogRoute || bootstrap || action === 'qr', now, clientIP);
+      const session = sessionFor(req, res, catalogRoute || bootstrap || action === 'qr', now, clientIP,auth);
       if (bootstrap) { json(res, 200, {}); return; }
       if (!session) {
         json(res, 200, action === 'status' ? { loggedIn: false, name: '' } : action === 'cancel' ? {} : { status: 'expired' }); return;
@@ -186,8 +217,9 @@ export function createHandler({ publicOrigin, fetcher = fetch }) {
       rate(buckets, 'session:' + (cookieId(req) || clientIP), 150, now);
       check(session.jobs < 8, 429, '当前操作较多，请稍后重试。');
       activeSession=session; activeSession.jobs++;
-      if (catalogRoute) json(res, 200, { result: await catalog(session, input.op, input.args) });
-      else json(res, 200, await session.account(action));
+      const result=catalogRoute?{result:await catalog(session,input.op,input.args)}:await session.account(action);
+      if(database)check(!session.closed&&database.authenticate(auth.token)?.id===auth.user.id,401,'登录状态已失效，请重新登录。');
+      json(res,200,result);
     } catch (error) {
       if (!res.headersSent && !res.destroyed) json(res, error instanceof HttpError ? error.status : 502, { error: publicError(error) });
       else if (!res.destroyed) res.destroy();
@@ -198,11 +230,18 @@ export function createHandler({ publicOrigin, fetcher = fetch }) {
   };
 }
 
+export function databaseOptionsFromEnv(env=process.env) {
+  const filename=env.BILIMUSIC_DB_PATH||path.resolve(env.BILIMUSIC_STATE_DIR||env.STATE_DIR||path.join(fileURLToPath(new URL('.',import.meta.url)),'state'),'bilimusic.sqlite');
+  return {filename,adminUsername:env.BILIMUSIC_ADMIN_USERNAME||'Music',adminPassword:env.BILIMUSIC_ADMIN_PASSWORD,adminPasswordHash:env.BILIMUSIC_ADMIN_PASSWORD_HASH};
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const port = Number(process.env.PORT || 3294);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw Error('无效的 PORT。');
   const publicOrigin = process.env.PUBLIC_ORIGIN || 'http://127.0.0.1:' + port;
-  const server = http.createServer({ requestTimeout: 30000, headersTimeout: 15000 }, createHandler({ publicOrigin }));
+  const database=await createDatabase(databaseOptionsFromEnv());
+  const server = http.createServer({ requestTimeout: 30000, headersTimeout: 15000 }, createHandler({ publicOrigin,database }));
+  server.on('close',()=>database.close());
   server.maxConnections = 512;
   server.listen(port, '127.0.0.1');
 }

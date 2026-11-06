@@ -17,6 +17,7 @@ export function installWebBridge() {
         body: JSON.stringify(data),
       });
       const result = await response.json();
+      if (response.status === 401) { sessionReady = undefined; window.dispatchEvent(new Event('bilimusic:auth-required')); }
       if (!response.ok || result.error)
         throw Error(typeof result.error === 'string' ? result.error : '音乐服务请求失败。');
       return result;

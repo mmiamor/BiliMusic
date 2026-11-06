@@ -25,8 +25,7 @@ export const session = [
 export const entryKey = (item) =>
   JSON.stringify([item.source, item.type || 'track', String(item.id)]);
 
-export function openLibrary(storage, onSaveError = () => {}) {
-  const key = 'bilimusic.library.v1';
+export function openLibrary(storage, onSaveError = () => {}, key = 'bilimusic.library.v1') {
   const data = {};
   let saved;
   try {

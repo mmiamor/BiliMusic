@@ -4,6 +4,10 @@ ios/DerivedData/
 ios/*.xcodeproj/xcuserdata/
 *.xcuserstate
 *.log
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+pwa/state/
 .env
 .env.*
 !.env.example

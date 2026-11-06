@@ -1,7 +1,7 @@
 import { icon } from './icons.mjs';
 import { openLibrary, entryKey, sectionInfo, session, sourceNames } from './library.mjs';
 import { createProviders, parseEntity } from './providers.mjs';
-import { AudioEngine, DSP_PRESETS, EQ_BANDS, activeLyricIndex } from './audio.mjs';
+import { AudioEngine, DSP_PRESETS, activeLyricIndex } from './audio.mjs';
 import { installWebBridge } from './pwa-bridge.mjs';
 import { CommentFeed } from './comment-feed.mjs';
 import { installViewport } from './viewport.mjs';
@@ -11,8 +11,14 @@ import { RADIO_STATIONS } from './radio.mjs';
 import { renderSettings } from './settings-view.mjs';
 import { AccountController, parseAccountResponse, readPreferences, savePreferences, validStartCategory } from './settings-model.mjs';
 import { APP_VERSION } from './app-version.mjs';
+import { DSPController } from './dsp-controller.mjs';
+import { siteSession, siteRequest } from './site-session.mjs';
+import { openPlaylists } from './playlists.mjs';
+import { PlaylistController } from './playlist-controller.mjs';
+import { renderAdmin } from './admin-view.mjs';
 
 installWebBridge();
+await siteSession.initialize(window.biliNative?.platform);
 installViewport();
 
 const $ = (selector) => document.querySelector(selector);
@@ -37,6 +43,7 @@ const api =
   );
 const library = openLibrary(localStorage, () =>
   notify('本机储存空间不足，本次更改仅在当前会话有效'),
+  siteSession.user ? 'bilimusic.library.v1.' + siteSession.user.id : 'bilimusic.library.v1',
 );
 const state = {
   page: 'home',
@@ -99,6 +106,8 @@ const labels = {
   search: '音源搜索',
   hifi: 'Hi-Fi 音源',
   settings: '设置',
+  playlists: '我的歌单',
+  admin: '数据库管理',
   library: '我的资料库',
   entity: '详情',
   ...Object.fromEntries(Object.entries(sectionInfo).map(([k, [label]]) => [k, label])),
@@ -133,6 +142,19 @@ const accountController = new AccountController({
   },
 });
 const action = (name, value = '') => `data-action="${esc(name)}" data-value="${esc(value)}"`;
+const dspController = new DSPController({ engine, storage: localStorage, helpers: {icon,esc,action}, onChange: refreshDSP, notify });
+const playlistController = new PlaylistController({
+  repository: openPlaylists({storage:localStorage, request:siteSession.enabled?siteRequest:null}),
+  helpers: {esc,icon,action,trackList,cloud:siteSession.enabled},
+  onChange: () => {if(state.page==='playlists')renderView();if(state.sheet==='playlist-picker')drawPlaylistPicker();},
+  onNavigate: () => {if(state.sheet)closeSheet();state.page='playlists';renderView();},
+  onPlay: tracks => {void playTrack(tracks[0],tracks);},
+  onAdded: () => {notify('已加入歌单');closeSheet(true);},
+  queue: () => state.queue,
+});
+const adminState={summary:null,users:[],loading:false,busy:false,error:'',message:''};
+window.addEventListener?.('bilimusic:auth-required',()=>{++playToken;engine.stop();state.playback='ready';});
+
 function iconButton(name, title, act, value = '', extra = '') {
   return `<button type="button" class="icon ${extra}" title="${esc(title)}" aria-label="${esc(title)}" ${action(act, value)}>${icon(name)}</button>`;
 }
@@ -154,12 +176,13 @@ function nav(label, glyph, page, count) {
   return `<button type="button" class="nav-link ${state.page === page ? 'active' : ''}" ${state.page === page ? 'aria-current="page"' : ''} ${action('nav', page)}>${icon(glyph)}<span>${label}</span>${count ? '<small>' + count + '</small>' : ''}</button>`;
 }
 function sidebar() {
-  const preset = DSP_PRESETS.find((p) => p.id === engine.dsp.preset)?.name || '自定义';
+  const preset = dspController.name() || DSP_PRESETS.find((p) => p.id === engine.dsp.preset)?.name || '自定义';
   $('#sidebar').innerHTML =
     `<button class="brand" ${action('nav', 'home')}><span class="brand-icon"><img src="./icons/v021-180.png" alt=""></span>BiliMusic</button>
     <div class="nav-scroll"><h2 class="nav-caption">音乐馆</h2>
     ${nav('发现音乐', 'discover', 'home')}${nav('音源搜索', 'search', 'search')}${nav('Hi-Fi 音源', 'wave', 'hifi')}
     <h2 class="nav-caption second">我的资料库</h2>
+    ${nav('我的歌单','collection','playlists')}
     ${Object.entries(sectionInfo)
       .map(([key, [label, glyph]]) => nav(label, glyph, key, library.list(key).length))
       .join('')}<div class="sidebar-settings">${nav('设置', 'settings', 'settings')}</div></div>
@@ -173,7 +196,7 @@ function sidebar() {
   ]
     .map(
       ([page, glyph, label]) =>
-        `<button class="${state.page === page || (page === 'library' && Object.hasOwn(sectionInfo, state.page)) ? 'active' : ''}" ${action(page === 'dsp' ? 'dsp' : 'nav', page)}>${icon(glyph, 19)}${label}</button>`,
+        `<button class="${state.page === page || (page === 'library' && (Object.hasOwn(sectionInfo, state.page) || state.page === 'playlists')) ? 'active' : ''}" ${action(page === 'dsp' ? 'dsp' : 'nav', page)}>${icon(glyph, 19)}${label}</button>`,
     )
     .join('');
 }
@@ -281,7 +304,7 @@ function entityList(items) {
 function libraryPage(page) {
   if (page === 'library')
     return (
-      viewTitle('我的资料库', '收藏保存在这台设备') +
+      viewTitle('我的资料库', '整理歌单，收藏喜欢的音乐') + nav('我的歌单','collection','playlists') +
       Object.entries(sectionInfo)
         .map(([key, [label, glyph]]) => nav(label, glyph, key, library.list(key).length))
         .join('')
@@ -394,9 +417,28 @@ async function changeAccount(kind) {
   else if (kind === 'logout' && previous === 'signed-in' && result.status === 'signed-out') notify('已退出哔哩哔哩');
 }
 function settingsPage() {
-  return renderSettings({ account: accountController.state, loginAvailable: Boolean(window.biliNative?.loginBilibili),
+  const html = renderSettings({ account: accountController.state, loginAvailable: Boolean(window.biliNative?.loginBilibili),
     defaultCategory: preferences.startCategory, dsp: engine.dsp, platform: window.biliNative?.platform, version: APP_VERSION }, { icon, esc, action });
+  if (!siteSession.user) return html;
+  const account = `<section class="site-account-card"><h2>音乐账号</h2><p>${esc(siteSession.user.username)} · ${siteSession.user.role==='admin'?'管理员':'成员'}<br>歌单保存在账号中，哔哩哔哩授权由下方单独管理。</p>${siteSession.user.role==='admin'?`<button class="secondary" ${action('nav','admin')}>数据库管理</button>`:''}<button class="secondary" ${action('site-logout')}>退出音乐账号</button></section>`;
+  return html.replace('</header>', '</header>'+account);
 }
+async function loadAdmin() {
+  if(siteSession.user?.role!=='admin')return;
+  adminState.loading=true;adminState.error='';if(state.page==='admin')renderView();
+  try{const [summary,users]=await Promise.all([siteRequest('admin/summary'),siteRequest('admin/users')]);adminState.summary=summary;adminState.users=users.users;}
+  catch(error){adminState.error=error.message;}
+  finally{adminState.loading=false;if(state.page==='admin')renderView();}
+}
+function drawPlaylistPicker() {
+  $('#sheet-body').innerHTML=sheetHead('加入歌单')+playlistController.pickerView();
+}
+function openPlaylistPicker(track) {
+  if(!track)return;
+  showSheet('playlist-picker','');
+  void playlistController.picker(track);
+}
+
 function entityPage() {
   const e = state.entity;
   if (!e) return '';
@@ -449,19 +491,21 @@ function renderView() {
         ? searchPage()
         : state.page === 'entity'
           ? entityPage()
-          : state.page === 'hifi' ? hifiPage() : state.page === 'settings' ? settingsPage() : libraryPage(state.page);
+          : state.page === 'hifi' ? hifiPage() : state.page === 'settings' ? settingsPage() : state.page === 'playlists' ? playlistController.view() : state.page === 'admin' ? renderAdmin(adminState,{esc,action}) : libraryPage(state.page);
   content.scrollTop = scroll;
   if (focused?.action) [...content.querySelectorAll('[data-action]')].find(el => el.dataset.action === focused.action && el.dataset.value === focused.value)?.focus({preventScroll:true});
   if (focused?.setting) [...content.querySelectorAll('[data-setting]')].find(el => el.dataset.setting === focused.setting)?.focus({preventScroll:true});
 }
 function navigate(page) {
-  if (!Object.hasOwn(labels, page)) return;
+  if (!Object.hasOwn(labels, page) || (page==='admin' && siteSession.user?.role!=='admin')) return;
   if (state.sheet) closeSheet();
   state.page = page;
   renderView();
   if (page === 'settings' || (page === 'search' && state.searchSource === 'bilibili' && accountController.state.status === 'unknown')) void checkAccount();
   $('#content').scrollTop = 0;
   if (page === 'home') void discovery.load();
+  if (page === 'playlists') void playlistController.load();
+  if (page === 'admin') void loadAdmin();
 }
 function resetSearch() {
   searchToken++;
@@ -849,6 +893,7 @@ async function loadLyrics(t, id) {
   renderDeck();
 }
 async function playTrack(t, queue, resume) {
+  if (siteSession.enabled && !siteSession.user) return;
   if (!t) return;
   if (t.source === 'radioparadise' && window.biliNative?.platform === 'ios') {
     notify('iOS 原生版暂不支持连续电台流，请在官方页面收听。');
@@ -942,7 +987,7 @@ function saveTrack(item) {
   if (state.sheet === 'info') drawInfo();
 }
 function showSheet(kind, html) {
-  if (state.sheet === 'player' && ['dsp', 'info'].includes(kind))
+  if (state.sheet === 'player' && ['dsp', 'info', 'playlist-picker'].includes(kind))
     returnToPlayer = true;
   state.sheet = kind;
   $('#sheet').dataset.kind = kind;
@@ -950,6 +995,7 @@ function showSheet(kind, html) {
   $('#sheet-body').innerHTML = html;
   if (!$('#sheet').open) $('#sheet').showModal();
   $('#sheet').scrollTop = 0;
+  if (kind === 'dsp' || kind === 'player') dspController.start();
 }
 function closeSheet(restore = false) {
   if (state.sheet === 'comments') {
@@ -1011,7 +1057,7 @@ function drawInfo() {
   $('#sheet-body').innerHTML =
     sheetHead('曲目详情') +
     `<div class="info-song">${cover(t, 'entity-hero')}<div><small>${sourceNames[t.source]}</small><h3>${esc(t.title)}</h3><p>${esc(t.artist)}</p></div></div>
-    <div class="info-actions"><button class="primary" ${action('play-selected')}>${icon('play', 14)} 播放</button><button class="secondary" ${action('save-selected')}>${icon(saved ? 'check' : 'heart', 15)} ${saved ? '已收藏' : '收藏歌曲'}</button>${t.source === 'netease' ? `<button class="secondary" ${action('comments', 'selected')}>${icon('comments', 14)} 评论</button>` : ''}</div>
+    <div class="info-actions"><button class="secondary" ${action('playlist-add-track','selected')}>${icon('plus',15)} 加入歌单</button><button class="primary" ${action('play-selected')}>${icon('play', 14)} 播放</button><button class="secondary" ${action('save-selected')}>${icon(saved ? 'check' : 'heart', 15)} ${saved ? '已收藏' : '收藏歌曲'}</button>${t.source === 'netease' ? `<button class="secondary" ${action('comments', 'selected')}>${icon('comments', 14)} 评论</button>` : ''}</div>
     ${t.source === 'local' ? '<p class="status">山间来信 · FLAC · 16 bit / 44.1 kHz</p>' : '<h3 class="info-label">相关资料</h3>'}
     ${detailEntities.map((e, i) => `<button class="relation" ${action('related', i)}>${icon(sectionInfo[e.type]?.[1] || 'album', 18)}<span><small>${shortType[e.type]}</small><strong>${esc(e.title)}</strong></span>${icon('chevron', 15)}</button>`).join('')}${state.relatedStatus ? `<p class="status">${esc(state.relatedStatus)}</p>` : ''}`;
 }
@@ -1088,25 +1134,34 @@ function drawComments() {
   $('#sheet').scrollTop = keepPosition;
 }
 function dspView(withHeading = true) {
-  const d = engine.dsp;
-  return (
-    (withHeading ? sheetHead('DSP 调音台') : '') +
-    `<div class="dsp-status"><span>${icon('sliders', 21)}<b>均衡器</b></span><label class="switch"><input type="checkbox" data-dsp="enabled" ${d.enabled ? 'checked' : ''} aria-label="启用 DSP"><i></i></label></div>
-    <div class="preset"><label for="preset">预设</label><select id="preset" data-dsp="preset">${DSP_PRESETS.map((p) => `<option value="${esc(p.id)}" ${d.preset === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}${d.preset === 'custom' ? '<option value="custom" selected>自定义</option>' : ''}</select></div>
-    <div class="bands">${EQ_BANDS.map((hz, i) => `<label><output data-band-db="${i}">${d.bands[i]} dB</output><input type="range" data-band="${i}" min="-12" max="12" step="0.5" value="${d.bands[i]}" aria-label="${hz} Hz 增益"><span>${hz >= 1000 ? hz / 1000 + 'k' : hz}</span></label>`).join('')}</div>
-    <div class="dsp-row"><label for="preamp">前级增益</label><input id="preamp" type="range" data-dsp="preamp" min="-24" max="12" step=".5" value="${d.preamp}"><output id="preamp-value">${d.preamp} dB</output></div>
-    <div class="dsp-row"><label for="limit">输出限幅</label><label class="switch"><input id="limit" type="checkbox" data-dsp="limiter" ${d.limiter ? 'checked' : ''}><i></i></label></div>`
-  );
+  return (withHeading ? sheetHead('DSP 调音台') : '') + dspController.view();
 }
-function updateCustom() {
-  const select = $('#preset');
-  if (engine.dsp.preset === 'custom' && select) {
-    if (!select.querySelector('[value="custom"]')) select.add(new Option('自定义', 'custom'));
-    select.value = 'custom';
+function refreshDSP(render = true) {
+  const root = document.querySelector('.dsp-console');
+  if (root && render) {
+    const focused = root.contains(document.activeElement) ? { ...document.activeElement.dataset } : null;
+    const parent = root.parentElement, scroll = parent.scrollTop;
+    root.outerHTML = dspController.view();
+    parent.scrollTop = scroll;
+    if (focused) {
+      const next = [...parent.querySelectorAll('input,select,textarea,button')].find(el => Object.entries(focused).every(([key,value]) => el.dataset[key] === value));
+      next?.focus({preventScroll:true});
+    }
   }
+  sidebar();
+  if (state.page === 'settings') renderView();
 }
 function dispatch(act, val) {
+  if(act==='playlist-add-track'){openPlaylistPicker(val==='selected'?state.selected:state.current);return;}
+  if(act.startsWith('playlist-')){void playlistController.command(act,val);return;}
+  if (act.startsWith('dsp-')) { void dspController.command(act,val); return; }
   switch (act) {
+    case 'site-logout':
+      void siteSession.logout().catch(error=>notify(error.message));
+      break;
+    case 'admin-refresh':
+      void loadAdmin();
+      break;
     case 'settings-login':
       void changeAccount('login');
       break;
@@ -1325,6 +1380,7 @@ function dispatch(act, val) {
       state.playerDsp = val === 'dsp';
       if (!state.playerDsp) state.deck = val === 'lyrics' ? 'lyrics' : 'queue';
       renderDeck();
+      if (state.playerDsp) dspController.start();
       break;
     case 'lyric-options': {
       const menu = $('#lyric-options');
@@ -1401,6 +1457,15 @@ $('#search-form').addEventListener('submit', (event) => {
   $('#global-search').blur();
   runSearch();
 });
+document.addEventListener('submit', event => {
+  if(event.target.matches('[data-playlist-form]')) {event.preventDefault();void playlistController.submit(event.target);}
+  if(event.target.matches('[data-admin-create]')) {
+    event.preventDefault();if(adminState.busy)return;
+    const form=event.target,input={username:form.elements.username.value,password:form.elements.password.value,role:form.elements.role.value};
+    adminState.busy=true;adminState.error='';adminState.message='';renderView();
+    void siteRequest('admin/create-user',input).then(()=>{adminState.message='账号已创建。';return loadAdmin();}).catch(error=>{adminState.error=error.message;}).finally(()=>{adminState.busy=false;if(state.page==='admin')renderView();});
+  }
+});
 document.addEventListener('keydown', (event) => {
   if (
     event.target.matches('input,select,textarea') ||
@@ -1424,19 +1489,7 @@ document.addEventListener('input', ({ target: el }) => {
     engine.setVolume(+el.value);
     refreshTime();
   }
-  if (el.matches('[data-band]')) {
-    const i = Number(el.dataset.band),
-      bands = [...engine.dsp.bands];
-    bands[i] = +el.value;
-    engine.setDSP({ bands });
-    document.querySelector(`[data-band-db="${i}"]`).textContent = el.value + ' dB';
-    updateCustom();
-  }
-  if (el.matches('[data-dsp="preamp"]')) {
-    engine.setDSP({ preamp: +el.value });
-    $('#preamp-value').textContent = el.value + ' dB';
-    updateCustom();
-  }
+  dspController.input(el);
 });
 document.addEventListener('change', ({ target: el }) => {
   if (el.matches('[data-setting="start-category"]')) {
@@ -1449,17 +1502,22 @@ document.addEventListener('change', ({ target: el }) => {
     renderView();
   }
   if (el.matches('[data-seek]') && engine.stream && !state.current?.isLive) engine.seek(+el.value);
-  if (el.matches('[data-dsp="enabled"],[data-dsp="limiter"]'))
-    engine.setDSP({ [el.dataset.dsp]: el.checked });
-  if (el.matches('[data-dsp="preset"]') && el.value !== 'custom') {
-    engine.applyPreset(el.value);
-    if (state.sheet === 'player') renderDeck();
-    else $('#sheet-body').innerHTML = dspView();
-  }
-  if (el.matches('[data-dsp],[data-band]')) {
-    sidebar();
-    if (state.page === 'settings') renderView();
-  }
+  void dspController.change(el);
+});
+document.addEventListener('pointerdown', event => dspController.pointerDown(event));
+document.addEventListener('pointermove', event => dspController.pointerMove(event));
+document.addEventListener('pointerup', event => dspController.pointerUp(event));
+document.addEventListener('pointercancel', event => dspController.pointerUp(event));
+document.addEventListener('dblclick', event => dspController.curveDoubleClick(event));
+document.addEventListener('wheel', event => dspController.curveWheel(event), {passive:false});
+document.addEventListener('keydown', event => {
+  const tab = event.target.closest?.('[data-action="dsp-tab"]');
+  if (!tab || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+  event.preventDefault();
+  const tabs=['overview','eq','fx','output'], index=tabs.indexOf(tab.dataset.value);
+  const next=event.key==='Home'?0:event.key==='End'?3:(index+(event.key==='ArrowRight'?1:3))%4;
+  void dspController.command('dsp-tab',tabs[next]);
+  document.querySelector(`[data-action="dsp-tab"][data-value="${tabs[next]}"]`)?.focus();
 });
 document.addEventListener(
   'error',
