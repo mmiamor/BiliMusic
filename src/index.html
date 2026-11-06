@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' bilimusic:; script-src 'self' bilimusic:; style-src 'self' bilimusic: 'unsafe-inline'; img-src 'self' bilimusic: https: data: blob:; media-src 'self' bilimusic: blob: data:; connect-src 'self' bilimusic: blob:; object-src 'none'; base-uri 'none'; frame-src 'none'"
+    />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#f3f2f5" />
+    <title>BiliMusic</title>
+    <link rel="stylesheet" href="./app.css" />
+    <link rel="stylesheet" href="./lyrics.css" />
+    <link rel="stylesheet" href="./comments.css" />
+    <link rel="stylesheet" href="./macos.css" />
+    <link rel="stylesheet" href="./player-layout.css" />
+    <link rel="stylesheet" href="./window-chrome.css" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/v021-180.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/v021-32.png" />
+    <meta name="apple-mobile-web-app-title" content="BiliMusic" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  </head>
+  <body>
+    <aside id="sidebar" aria-label="主导航"></aside>
+    <main id="workspace">
+      <header class="topbar">
+        <button
+          id="mobile-library"
+          class="icon mobile-only"
+          aria-label="打开资料库"
+          data-action="nav"
+          data-value="library"
+        ></button>
+        <div id="crumb" class="crumb"></div>
+        <button type="button" id="pwa-install" class="install-action" hidden>安装应用</button>
+        <form class="global-search" id="search-form" role="search">
+          <span id="search-symbol"></span>
+          <input
+            id="global-search"
+            aria-label="搜索音乐或粘贴链接"
+            autocomplete="off"
+            enterkeyhint="search"
+            placeholder="搜索音乐或粘贴链接"
+          />
+          <kbd>/</kbd>
+        </form>
+      </header>
+      <div id="columns">
+        <section id="content" aria-label="音乐馆"></section>
+        <aside id="deck" aria-label="播放详情"></aside>
+      </div>
+    </main>
+    <footer id="transport" aria-label="播放控制"></footer>
+    <nav id="mobile-nav" aria-label="移动导航"></nav>
+    <dialog id="sheet" aria-labelledby="sheet-title"><div id="sheet-body"></div></dialog>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <noscript>BiliMusic 需要启用 JavaScript。</noscript>
+    <script type="module" src="./window-chrome.mjs"></script>
+    <script type="module" src="./app.mjs"></script>
+  </body>
+</html>

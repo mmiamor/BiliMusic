@@ -1,0 +1,41 @@
+name: BiliMusic build
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Build target
+        type: choice
+        default: both
+        options: [ios, windows, both]
+permissions:
+  contents: read
+jobs:
+  ios:
+    if: inputs.platform == 'ios' || inputs.platform == 'both'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build unsigned IPA
+        run: bash scripts/build-ipa.sh unsigned
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BiliMusic-iOS-unsigned
+          path: dist/BiliMusic-unsigned.ipa
+          if-no-files-found: error
+  windows:
+    if: inputs.platform == 'windows' || inputs.platform == 'both'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BiliMusic-Windows-x64
+          path: dist/*.zip
+          if-no-files-found: error

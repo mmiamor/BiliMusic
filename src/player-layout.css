@@ -1,0 +1,60 @@
+/* Keep the transport in view while the queue, lyrics or equalizer scrolls. */
+#sheet[data-kind='player'] {
+  width: min(980px, calc(100vw - 56px));
+  height: min(730px, calc(100dvh - 80px));
+  max-width: none;
+  max-height: calc(100dvh - 80px);
+  padding: 22px 26px 26px;
+  overflow: hidden;
+}
+#sheet[data-kind='player'] #sheet-body { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+#sheet[data-kind='player'] #sheet-body > .deck-head { flex: none; margin-bottom: 20px; }
+.player-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.15fr); gap: 34px; }
+.player-main { min-width: 0; min-height: 0; overflow: auto; scrollbar-width: thin; padding: 0 2px 4px; }
+#sheet[data-kind='player'] .player-main .deck-art { width: min(100%, 30dvh); max-width: 290px; margin: 0 auto 18px; }
+.player-main .now-title { margin-top: 0; align-items: flex-start; }
+.player-main .now-title h3 { font-size: 20px; line-height: 1.4; font-weight: 650; overflow-wrap: anywhere; }
+.player-main .track-meta { flex-wrap: wrap; margin: 10px 0 14px; }
+.player-main .full-time { margin: 0; }
+.player-main .full-controls { gap: 15px; margin: 16px 0 12px; }
+.player-main .full-controls .icon { width: 37px; height: 37px; }
+.player-main .full-controls .play-key { width: 48px; height: 48px; background: var(--accent); color: #fff; }
+.player-main .full-controls .on { color: var(--accent); }
+.player-volume { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.player-volume input { width: 120px; background: linear-gradient(to right, #92929b var(--played), #dcdce2 var(--played)); }
+.player-volume input::-webkit-slider-thumb { background: #fff; border: 1px solid #c9c9d0; }
+.player-detail { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding-left: 28px; border-left: 1px solid var(--line); }
+.player-tabs { flex: none; display: flex; gap: 4px; padding: 3px; border-radius: 7px; background: #eaeaf0; }
+.player-tabs button { flex: 1; text-align: center; font-size: 12px; padding: 6px 8px; color: var(--muted); border-radius: 5px; white-space: nowrap; }
+.player-tabs button.active { color: var(--ink); background: #fff; box-shadow: 0 1px 4px #00000012; }
+.player-tabs small { font-size: 10px; padding-left: 5px; color: var(--subtle); }
+.player-detail-body { flex: 1; min-height: 0; overflow: auto; margin-top: 17px; scrollbar-width: thin; }
+.player-detail .queue-list { margin: 0; }
+.player-detail .queue-list button { min-height: 44px; gap: 12px; padding-inline: 9px; border-bottom: 1px solid #eeeef2; border-radius: 4px; }
+.player-detail .queue-list button.current { background: #fbecef; }
+.player-detail .queue-list button > span:nth-child(2) { white-space: normal; overflow-wrap: anywhere; }
+.player-lyrics { overflow: hidden; display: flex; flex-direction: column; }
+#sheet[data-kind='player'] .player-lyrics .lyric-lines { height: 100%; max-height: none; padding-block: 30px; }
+.player-lyrics .lyric-line { padding: 13px 5px; font-size: 22px; line-height: 1.45; font-weight: 600; color: #8b8b95; }
+.player-lyrics .lyric-line.active { color: var(--ink); }
+.player-lyrics .lyric-reading { font-size: 14px; line-height: 1.6; font-weight: 400; margin-top: 5px; }
+.player-lyrics .no-lyric { margin: auto 0; color: var(--muted); }
+.player-lyric-modes { display: flex; gap: 4px; padding-top: 12px; }
+.player-detail .bands { margin-top: 20px; }
+@media (max-width: 660px) {
+  #sheet[data-kind='player'] { width: 100%; height: var(--app-view-height, 100dvh); max-height: var(--app-view-height, 100dvh); padding: 16px 20px 20px; }
+  #sheet[data-kind='player'] #sheet-body > .deck-head { margin-bottom: 10px; }
+  .player-layout { display: flex; flex-direction: column; gap: 18px; overflow: auto; }
+  .player-main { flex: none; overflow: visible; padding: 0; }
+  #sheet[data-kind='player'] .player-main .deck-art { width: min(45vw, 22dvh); margin-bottom: 12px; }
+  .player-main .now-title h3 { font-size: 18px; }
+  .player-main .track-meta { margin-bottom: 10px; }
+  .player-main .full-controls { margin: 9px 0 4px; }
+  .player-main .full-controls .icon { width: 44px; height: 44px; }
+  .player-volume { display: none; }
+  .player-detail { flex: none; min-height: 230px; padding: 0; border: 0; }
+  .player-tabs button { min-height: 40px; }
+  .player-detail-body { flex: none; min-height: 170px; margin-top: 10px; overflow: visible; }
+  #sheet[data-kind='player'] .player-lyrics .lyric-lines { height: auto; max-height: 45dvh; }
+  .player-lyrics .lyric-line { font-size: 20px; }
+}

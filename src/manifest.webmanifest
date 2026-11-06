@@ -1,0 +1,35 @@
+{
+  "id": "./",
+  "name": "BiliMusic",
+  "short_name": "BiliMusic",
+  "description": "哔哩哔哩、酷我、网易云音乐播放器",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#f3f2f5",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "./icons/v021-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/v021-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/v021-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {"src":"./install-preview.webp","sizes":"440x956","type":"image/webp","form_factor":"narrow","label":"BiliMusic 手机发现页"}
+  ]
+}

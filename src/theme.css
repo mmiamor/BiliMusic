@@ -1,0 +1,698 @@
+/* Shared palette for the library and player around the cover-tinted lyric view. */
+:root {
+  --ink: #f6f4ff;
+  --muted: #c1c1db;
+  --subtle: #ababca;
+  --line: rgb(222 222 255 / 16%);
+  --green: #dbd3ff;
+  --pale: rgb(207 191 255 / 15%);
+  --paper: #292940;
+  --surface: rgb(218 218 255 / 7%);
+  --hover: rgb(216 207 255 / 12%);
+  --edge: rgb(226 222 255 / 23%);
+  --accent: #e4deff;
+  --accent-ink: #302747;
+  color-scheme: dark;
+  color: var(--ink);
+  background: #252540;
+}
+
+html {
+  background: #252540;
+}
+
+body {
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse at 77% -10%, rgb(119 85 153 / 46%), transparent 53%),
+    radial-gradient(ellipse at 8% 93%, rgb(29 75 119 / 51%), transparent 54%),
+    linear-gradient(125deg, #363752, #2c2c48 64%, #302f49);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline-color: #d0bcff;
+}
+
+::selection {
+  color: white;
+  background: #7563a0;
+}
+
+#sidebar {
+  border-right-color: var(--line);
+  background: linear-gradient(170deg, rgb(40 40 65 / 90%), rgb(31 38 61 / 87%));
+}
+
+.brand {
+  color: var(--ink);
+}
+
+.brand-icon {
+  color: #f2edff;
+  background: linear-gradient(150deg, #8f70ba, #555c99);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 24%), 0 4px 12px rgb(24 22 43 / 23%);
+}
+
+.nav-caption,
+.crumb,
+.track-index,
+.track-time,
+.queue-num,
+.queue-list small,
+.seekbar span {
+  color: var(--subtle);
+}
+
+.nav-link {
+  color: #d5d5e8;
+}
+
+.nav-link:hover {
+  color: white;
+  background: var(--hover);
+}
+
+.nav-link.active {
+  color: #faf7ff;
+  background: linear-gradient(110deg, rgb(167 143 222 / 34%), rgb(139 145 213 / 16%));
+  box-shadow: inset 0 0 0 1px rgb(213 200 255 / 19%);
+}
+
+.nav-link small {
+  color: #d1c5ee;
+}
+
+.sidebar-dsp,
+.topbar,
+.track-row,
+.deck-tabs,
+.output i,
+.entity-tabs {
+  border-color: var(--line);
+}
+
+.dsp-pin,
+.dsp-key {
+  color: #e5dcff;
+  border-color: var(--edge);
+  background: var(--pale);
+}
+
+.topbar {
+  background: rgb(39 40 65 / 43%);
+}
+
+.crumb strong {
+  color: #e7e3fa;
+}
+
+.global-search {
+  color: var(--muted);
+  border-color: var(--line);
+  background: rgb(238 236 255 / 8%);
+}
+
+.global-search:focus-within {
+  border-color: #b7a7e7;
+  background: rgb(238 236 255 / 11%);
+}
+
+.global-search input::placeholder,
+.track-text small,
+.mini-track small,
+.entity-card small {
+  color: var(--muted);
+}
+
+.global-search kbd {
+  border-color: var(--edge);
+  color: var(--muted);
+}
+
+#content,
+#deck,
+.nav-scroll,
+dialog {
+  scrollbar-color: #6e6b86 transparent;
+}
+
+.home-heading,
+.view-title h1,
+.section-head h2,
+.entity-intro h1,
+.deck-head h2,
+.now-title h3 {
+  color: var(--ink);
+}
+
+.hero {
+  border: 1px solid rgb(222 221 254 / 22%);
+  border-radius: 16px;
+  box-shadow: 0 9px 24px rgb(19 19 42 / 20%);
+}
+
+.hero::before {
+  background: linear-gradient(100deg, #28233fea 1%, #353147cf 33%, #4248575e 72%, #30374926);
+}
+
+.hero-label,
+.en-title {
+  color: #ede6ff;
+}
+
+.hero-label span,
+.hero-credit i {
+  background: #d8cbed;
+}
+
+.hero-credit {
+  color: #e1deec;
+}
+
+.primary,
+.primary.light {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.secondary,
+.more,
+.account-button,
+.dsp-key,
+.comment-more {
+  color: var(--accent);
+  border-color: var(--edge);
+  background: var(--surface);
+}
+
+.source-card {
+  border: 1px solid var(--edge);
+  box-shadow: inset 0 1px rgb(255 255 255 / 4%);
+}
+
+.source-card.bilibili {
+  --source: #f6c9dc;
+  --mark: rgb(243 177 209 / 13%);
+  background: linear-gradient(125deg, #544357, #443b51);
+}
+
+.source-card.kuwo {
+  --source: #f1d9a4;
+  --mark: rgb(245 209 144 / 13%);
+  background: linear-gradient(125deg, #514a46, #423f49);
+}
+
+.source-card.netease {
+  --source: #ffc8c6;
+  --mark: rgb(255 175 165 / 13%);
+  background: linear-gradient(125deg, #59444e, #493a4d);
+}
+
+.source-mark {
+  box-shadow: inset 0 0 0 1px rgb(239 233 255 / 11%);
+}
+
+.source-card strong {
+  color: #fbf8ff;
+}
+
+.source-card small {
+  color: #dfd9e4;
+}
+
+.track-row:hover,
+.entity-card:hover,
+.relation:hover,
+.queue-list button:hover {
+  background: var(--hover);
+}
+
+.track-row.playing {
+  background: linear-gradient(90deg, rgb(192 171 243 / 15%), transparent);
+}
+
+.track-row.playing .track-index,
+.track-row.playing .track-text strong {
+  color: #ede2ff;
+}
+
+.art,
+.deck-art,
+.empty-icon,
+.comment-avatar {
+  color: #d5ccec;
+  background: linear-gradient(135deg, #5c5b7c, #454863);
+}
+
+.icon,
+.deck-head h2 svg,
+.buttons .icon:first-child,
+.buttons .icon:last-child {
+  color: #d4d3e9;
+}
+
+.icon:hover {
+  background: var(--hover);
+}
+
+.icon.liked,
+.buttons .icon.on,
+.saved,
+.install-action {
+  color: #e3c9ff;
+}
+
+#deck {
+  border-color: var(--line);
+  background: linear-gradient(155deg, rgb(98 80 117 / 44%), rgb(45 44 70 / 71%) 66%, rgb(36 45 73 / 72%));
+}
+
+.deck-art {
+  box-shadow: 0 8px 24px rgb(17 17 32 / 20%);
+}
+
+.format,
+.comments-link {
+  color: #e6dfff;
+  border-color: var(--edge);
+  background: var(--surface);
+}
+
+.deck-tabs button.active,
+.queue-list button.current > span,
+#deck .lyric-line.active {
+  color: #f0e5ff;
+}
+
+.deck-tabs button.active::after {
+  background: #cbb8f3;
+}
+
+.deck-tabs small {
+  color: #ece5ff;
+  background: var(--pale);
+}
+
+.queue-list button.current {
+  border-radius: 5px;
+  background: var(--surface);
+}
+
+.play-message {
+  color: #f6d6b9;
+}
+
+#transport,
+#mobile-nav {
+  border-color: var(--edge);
+  background: linear-gradient(106deg, #343852f5, #393650f2 58%, #34334cf5);
+}
+
+.topbar,
+#transport,
+#mobile-nav {
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.play-key,
+.play-key:hover {
+  color: #342e4c;
+  background: #e1d8ff;
+}
+
+.play-key:hover {
+  background: #f0eaff;
+}
+
+.output i {
+  background: var(--line);
+}
+
+.output input[type='range'],
+.seekbar input[type='range'],
+.dsp-row input[type='range'] {
+  background: linear-gradient(to right, #cfc4f0 var(--played), #64647d var(--played));
+}
+
+.output input[type='range']::-webkit-slider-thumb,
+.seekbar input[type='range']::-webkit-slider-thumb,
+.dsp-row input[type='range']::-webkit-slider-thumb {
+  background: #e6ddff;
+}
+
+.chip {
+  color: var(--muted);
+}
+
+.chip:hover,
+.chip.selected,
+.source-switch .chip.selected {
+  color: #f7f1ff;
+  border-color: #8a7ba4;
+  background: #584e73;
+}
+
+.source-switch .chip:not(.selected) {
+  background: var(--surface);
+}
+
+.empty h3 {
+  color: var(--ink);
+}
+
+dialog:not(.immersive-sheet),
+#sheet[data-kind='comments'] {
+  border-color: var(--edge);
+  color: var(--ink);
+  background: linear-gradient(155deg, #45405e, #33344c 68%, #30374d);
+  box-shadow: 0 22px 74px rgb(16 15 33 / 42%);
+}
+
+dialog::backdrop {
+  background: rgb(15 17 32 / 61%);
+}
+
+.dsp-status {
+  border: 1px solid var(--edge);
+  color: var(--ink);
+  background: var(--pale);
+}
+
+.dsp-status > span {
+  color: #eee6ff;
+}
+
+.switch i {
+  background: #69677d;
+}
+
+.switch input:checked + i {
+  background: #aa98d5;
+}
+
+.switch input:checked + i::before {
+  background: #312b45;
+}
+
+.switch input:focus-visible + i {
+  outline-color: #ddcaff;
+}
+
+.preset select {
+  border-color: var(--edge);
+  color: var(--ink);
+  background: #454259;
+}
+
+.preset option {
+  color: var(--ink);
+  background: #39374d;
+}
+
+.bands {
+  border-color: var(--line);
+  background: repeating-linear-gradient(0deg, transparent 0 24px, rgb(223 217 250 / 13%) 25px, transparent 26px), rgb(29 31 50 / 24%);
+}
+
+.bands input[type='range'] {
+  accent-color: #c0aee7;
+}
+
+.comment-name,
+.comment-refresh,
+.comment-more {
+  color: var(--accent);
+}
+
+.comment-text {
+  color: #f3f0fa;
+}
+
+.web-login header button:hover,
+.comment-refresh:hover {
+  color: white;
+}
+
+#notice {
+  border: 1px solid rgb(242 238 255 / 25%);
+  color: white;
+  background: #49405e;
+}
+
+@media (hover: hover) {
+  .source-card:hover {
+    border-color: rgb(243 236 255 / 38%);
+    filter: brightness(1.08);
+  }
+}
+
+@media (max-width: 660px) {
+  .topbar {
+    background: transparent;
+  }
+
+  #transport {
+    background: linear-gradient(110deg, #42425e, #393850);
+  }
+
+  #mobile-nav button,
+  .buttons .icon:last-child {
+    color: var(--muted);
+  }
+
+  #mobile-nav button.active {
+    color: #efe4ff;
+  }
+
+  #mobile-nav button.active svg {
+    filter: drop-shadow(0 0 5px rgb(208 186 255 / 48%));
+  }
+}
+
+@media (max-width: 660px), (any-pointer: coarse) {
+  html, body {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  html {
+    height: 100%;
+  }
+
+  body {
+    position: fixed;
+    inset: var(--app-view-top, 0px) 0 auto;
+    height: 100vh;
+    height: var(--app-view-height, 100dvh);
+    padding-right: env(safe-area-inset-right);
+    padding-left: env(safe-area-inset-left);
+  }
+
+  #workspace,
+  #columns {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #content, #deck, .nav-scroll, .lyric-lines, dialog {
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+
+  #content, #deck, .nav-scroll, .lyric-lines {
+    overflow-y: auto;
+  }
+
+  #global-search,
+  .preset select {
+    /* A smaller font can make iOS automatically zoom and pan on focus. */
+    font-size: 16px;
+  }
+
+  #global-search::placeholder {
+    font-size: 12px;
+  }
+
+  input[type='range'] {
+    touch-action: none;
+  }
+
+  dialog:not(.immersive-sheet) {
+    max-height: calc(var(--app-view-height, 100dvh) - env(safe-area-inset-top) - 18px);
+  }
+}
+
+@media (max-width: 660px) {
+  #sheet[data-kind='player'],
+  #sheet.immersive-sheet {
+    height: var(--app-view-height, 100dvh);
+    max-height: var(--app-view-height, 100dvh);
+  }
+
+  #sheet[data-kind='comments'] {
+    max-height: calc(var(--app-view-height, 100dvh) - env(safe-area-inset-top) - 12px);
+  }
+}
+
+@media (min-width: 661px) and (any-pointer: coarse) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* The portrait reference is a 440 × 956 CSS-pixel canvas. Let the gutters,
+   artwork and dock contract on smaller displays while keeping controls tappable. */
+@media (max-width: 660px) and (orientation: portrait) {
+  body {
+    --phone-gutter: clamp(14px, 4.55vw, 24px);
+    --mini-height: clamp(58px, 14.55vw, 66px);
+    --tabs-height: clamp(49px, 11.82vw, 54px);
+    grid-template-rows: minmax(0, 1fr) var(--mini-height) calc(var(--tabs-height) + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    height: clamp(52px, 13.2vw, 60px);
+    gap: 7px;
+    padding: 0 var(--phone-gutter);
+  }
+
+  .global-search {
+    height: clamp(35px, 9.1vw, 41px);
+  }
+
+  #mobile-library,
+  #transport .buttons .icon,
+  .track-row > .icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  #content {
+    padding-inline: var(--phone-gutter);
+  }
+
+  .home-heading, .view-title h1 {
+    font-size: clamp(26px, 6.82vw, 31px);
+  }
+
+  .hero {
+    min-height: clamp(185px, 49vw, 230px);
+    padding-inline: clamp(16px, 4.8vw, 24px);
+  }
+
+  .hero h2 {
+    font-size: clamp(31px, 8.4vw, 40px);
+  }
+
+  .hero-record {
+    right: 6%;
+    width: clamp(82px, 28.5vw, 150px);
+  }
+
+  .track-row {
+    min-height: clamp(52px, 13.2vw, 59px);
+  }
+
+  .track-text strong, .mini-track strong {
+    font-size: clamp(13px, 3.25vw, 15px);
+  }
+
+  #transport {
+    padding-inline: var(--phone-gutter);
+  }
+
+  #transport .mini-track {
+    min-height: 44px;
+  }
+
+  #transport .mini-art {
+    width: clamp(37px, 9.55vw, 44px);
+    height: clamp(37px, 9.55vw, 44px);
+  }
+
+  #transport .buttons {
+    gap: 2px;
+  }
+
+  #transport .buttons .play-key {
+    background: radial-gradient(circle, #e1d8ff 0 55%, transparent 57%);
+  }
+
+  #mobile-nav button {
+    min-height: 44px;
+    font-size: 11px;
+  }
+
+  #sheet[data-kind='player']:not(.immersive-sheet) {
+    padding-inline: clamp(19px, 5.45vw, 27px);
+  }
+
+  #sheet[data-kind='player']:not(.immersive-sheet) .deck-art {
+    width: min(100%, 39dvh);
+    max-width: clamp(280px, 77.3vw, 354px);
+  }
+
+  #sheet[data-kind='player'] .deck-head .icon,
+  #sheet[data-kind='player'] .now-title .icon,
+  #sheet[data-kind='player'] .full-controls .icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  #sheet[data-kind='player'] .queue-list button,
+  #sheet[data-kind='comments'] .comment-tabs button {
+    min-height: 44px;
+  }
+}
+
+/* A horizontal phone has room for navigation and one content pane. Reserve the
+   compact dock for transport instead of squeezing in a third desktop column. */
+@media (any-pointer: coarse) and (orientation: landscape) and (min-width: 661px) and (max-height: 500px) {
+  body {
+    grid-template-columns: clamp(134px, 17vw, 160px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 62px;
+  }
+
+  #sidebar { padding: 10px 7px 8px; }
+  .brand { gap: 8px; font-size: 20px; }
+  .brand-icon { width: 28px; height: 28px; }
+  .nav-scroll { margin-top: 9px; }
+  .nav-caption.second { margin-top: 14px; }
+  .sidebar-dsp { padding-top: 6px; }
+  .topbar { height: 49px; }
+  #columns { display: block; }
+  #content { height: 100%; padding: 12px 18px 18px; }
+  #deck { display: none; }
+  #transport { padding-inline: 12px; }
+  .transport-center { gap: 1px; }
+  .home-heading { font-size: 26px; }
+  .hero { min-height: 174px; }
+
+  #sheet[data-kind='player']:not(.immersive-sheet) {
+    width: min(790px, calc(100% - env(safe-area-inset-left) - env(safe-area-inset-right) - 22px));
+    max-width: none;
+    max-height: calc(var(--app-view-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 12px);
+    padding: 13px 21px;
+  }
+
+  #sheet[data-kind='player']:not(.immersive-sheet) #sheet-body {
+    display: grid;
+    grid-template-columns: minmax(0, 0.74fr) minmax(0, 1.26fr);
+    align-content: start;
+    column-gap: 20px;
+  }
+
+  #sheet[data-kind='player']:not(.immersive-sheet) #sheet-body > * { grid-column: 2; }
+  #sheet[data-kind='player']:not(.immersive-sheet) #sheet-body > .deck-head { grid-column: 1 / -1; margin-bottom: 9px; }
+  #sheet[data-kind='player']:not(.immersive-sheet) #sheet-body > .deck-art { grid-column: 1; grid-row: 2 / span 7; }
+  #sheet[data-kind='player']:not(.immersive-sheet) .now-title { margin-top: 0; }
+}

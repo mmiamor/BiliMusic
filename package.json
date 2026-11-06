@@ -1,0 +1,49 @@
+{
+  "name": "bilimusic-player",
+  "productName": "BiliMusic",
+  "description": "哔哩哔哩、酷我、网易云音乐播放器",
+  "version": "0.3.0",
+  "private": true,
+  "author": "BiliMusic",
+  "main": "windows/main.cjs",
+  "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
+    "start": "electron .",
+    "test": "node --test tests/*.test.mjs",
+    "dist:win": "electron-builder --win zip --x64 --publish never",
+    "build:ipa": "bash scripts/build-ipa.sh"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.17.0"
+  },
+  "allowScripts": {
+    "electron": true
+  },
+  "build": {
+    "appId": "dev.bilimusic.player",
+    "productName": "BiliMusic",
+    "directories": {
+      "output": "dist"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "files": [
+      "windows/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "electronLanguages": [
+      "zh-CN",
+      "zh-TW",
+      "en-US"
+    ],
+    "win": {
+      "target": [
+        "zip"
+      ],
+      "icon": "windows/icon.ico",
+      "executableName": "BiliMusic",
+      "artifactName": "BiliMusic-${version}-Windows-${arch}.${ext}"
+    }
+  }
+}

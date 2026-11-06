@@ -1,0 +1,24 @@
+dist/
+node_modules/
+ios/DerivedData/
+ios/*.xcodeproj/xcuserdata/
+*.xcuserstate
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+.qa-profile/
+xcuserdata/
+# Host-specific production operations and retired design assets are local only.
+deploy/
+release/
+artwork/
+src/icons/options.webp
+docs/desktop.webp
+docs/mobile.webp
+docs/lyrics-mobile.webp
+docs/lyrics-desktop.webp
+docs/dsp.webp
+docs/comments-mobile.webp
+docs/iphone-16-pro-max.webp

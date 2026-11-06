@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="BiliMusic">
+  <title>BiliMusic</title>
+  <rect id="tile" x="8" y="8" width="496" height="496" rx="112" fill="#ed5666"/>
+  <g fill="#fff">
+    <path d="M207 156a12 12 0 0 1 10-12l140-27a12 12 0 0 1 14 12v184h-22V172l-120 23v149h-22V156Z"/>
+    <ellipse cx="187" cy="345" rx="43" ry="31" transform="rotate(-14 187 345)"/>
+    <ellipse cx="329" cy="314" rx="43" ry="31" transform="rotate(-14 329 314)"/>
+  </g>
+</svg>

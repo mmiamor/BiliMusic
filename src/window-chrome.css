@@ -1,0 +1,111 @@
+html.desktop-shell {
+  --window-chrome-height: 38px;
+}
+
+html.desktop-shell body {
+  padding-top: var(--window-chrome-height);
+}
+
+.window-chrome {
+  position: fixed;
+  z-index: 1000;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--window-chrome-height);
+  padding: 0 14px;
+  border-bottom: 1px solid #00000012;
+  background: #f3f3f5;
+  color: #454549;
+  font: 500 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+.window-controls {
+  position: absolute;
+  left: 11px;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.window-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: #0009;
+  background: transparent;
+  cursor: default;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.window-button::before {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #00000015;
+  border-radius: 50%;
+  background: var(--window-button-color);
+  content: '';
+}
+
+.window-close { --window-button-color: #ff5f57; }
+.window-minimize { --window-button-color: #febc2e; }
+.window-maximize { --window-button-color: #28c840; }
+
+.window-button svg {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  stroke: currentColor;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.window-controls:hover .window-button svg,
+.window-button:focus-visible svg { opacity: 1; }
+.window-button:focus-visible { outline: 2px solid #007aff; outline-offset: 0; }
+.window-button:active::before { filter: brightness(.85); }
+.window-button .restore-mark { display: none; }
+.window-maximized .window-button .maximize-mark { display: none; }
+.window-maximized .window-button .restore-mark { display: block; }
+.window-inactive .window-chrome { color: #8d8d92; background: #f6f6f7; }
+.window-inactive .window-button::before { background: #d1d1d5; }
+.window-inactive .window-controls:hover .window-button::before { background: var(--window-button-color); }
+
+.window-title {
+  padding: 8px 18px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+html.desktop-shell dialog::backdrop { top: var(--window-chrome-height); }
+html.desktop-shell #sheet {
+  top: var(--window-chrome-height);
+  max-height: calc(100dvh - var(--window-chrome-height) - 28px);
+}
+
+@media (max-width: 660px) {
+  html.desktop-shell #sheet[data-kind='player'],
+  html.desktop-shell #sheet.immersive-sheet {
+    top: var(--window-chrome-height);
+    height: calc(100dvh - var(--window-chrome-height));
+    max-height: calc(100dvh - var(--window-chrome-height));
+  }
+}
