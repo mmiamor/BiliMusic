@@ -50,7 +50,7 @@ const state = {
   current: session[0],
   queue: [...session],
   deck: 'queue',
-  playerDsp: false,
+  playerPane: 'lyrics',
   sheet: null,
   searchSource: 'bilibili',
   searchType: 'track',
@@ -76,6 +76,7 @@ const state = {
   relatedStatus: '',
 };
 let returnToPlayer = false;
+let playerOpener = null;
 let commentParent = null,
   commentRefreshTimer;
 const comments = new CommentFeed((track, options) => api.comments(track, options), drawComments);
@@ -680,7 +681,7 @@ function queueList() {
   return `<ol class="queue-list">${state.queue
     .map((t, i) => {
       const selected = entryKey(t) === entryKey(state.current);
-      return `<li><button class="${selected ? 'current' : ''}" ${action('queue-track', i)}><span class="queue-num">${selected ? icon('wave', 16) : String(i + 1).padStart(2, '0')}</span><span>${esc(t.title)}</span><small>${t.isLive ? '直播' : fmt(t.duration)}</small></button></li>`;
+      return `<li><button class="${selected ? 'current' : ''}" ${selected ? 'aria-current="true"' : ''} ${action('queue-track', i)}><span class="queue-num">${selected ? icon('wave', 16) : String(i + 1).padStart(2, '0')}</span><span>${esc(t.title)}</span><small>${t.isLive ? '直播' : fmt(t.duration)}</small></button></li>`;
     })
     .join('')}</ol>`;
 }
@@ -747,31 +748,49 @@ function panel(full = false) {
 function renderDeck() {
   $('#deck').innerHTML = panel();
   if (state.sheet === 'player') {
+    const root = $('#sheet-body'), focused = root.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = focused ? [...focused.attributes].filter(attribute => attribute.name.startsWith('data-')).map(attribute => [attribute.name,attribute.value]) : [];
+    const focusScope = ['.listening-controls','.listening-tools','.listening-heading','.listening-track','.listening-next'].find(selector => focused?.closest(selector));
+    const scroll = root.querySelector('.player-drawer')?.dataset.pane === state.playerPane ? root.querySelector('.player-detail-body')?.scrollTop || 0 : 0;
     $('#sheet').classList.remove('immersive-sheet');
-    $('#sheet-body').innerHTML = panel(true);
+    root.innerHTML = panel(true);
+    if (focusKey.length) [...root.querySelectorAll('button,input,select,textarea')].find(el => (!focusScope || el.closest(focusScope)) && focusKey.every(([key,value]) => el.getAttribute(key) === value))?.focus({preventScroll:true});
+    const drawer = root.querySelector('.player-detail-body');
+    if (drawer) drawer.scrollTop = scroll;
   }
   refreshTime();
 }
 function fullPlayer() {
   const t = state.current, saved = library.has('tracks', t);
-  const pane = state.playerDsp ? 'dsp' : state.deck;
+  const pane = state.playerPane;
   const modes = availableModes(), mode = selectedMode(modes);
   const modeLabels = { original: '原文', pronunciation: '注音', translation: '译文' };
   const modeButtons = pane === 'lyrics' && modes.length > 1
     ? `<div class="player-lyric-modes">${modes.map(key => `<button class="chip ${key === mode ? 'selected' : ''}" aria-pressed="${key === mode}" ${action('lyric-mode', key)}>${modeLabels[key]}</button>`).join('')}</div>` : '';
-  return `${sheetHead('正在播放')}<div class="player-layout">
-    <section class="player-main" aria-label="当前歌曲与播放控制">
-      <div class="deck-art">${cover(t)}</div>
-      <div class="now-title"><div><h3>${esc(t.title)}</h3><button class="artist-link" ${action('current-info')}>${esc(t.artist || sourceNames[t.source])}${icon('chevron', 12)}</button></div>${iconButton('heart', saved ? '取消收藏这首歌' : '收藏这首歌', 'save-current', '', saved ? 'liked' : '')}</div>
-      <div class="track-meta"><span class="format">${icon('wave', 12)} ${esc(quality())}</span><span>${sourceNames[t.source]}</span>${t.source === 'netease' ? `<button class="comments-link" ${action('comments')}>${icon('comments', 14)} 评论</button>` : ''}</div>
-      ${playbackFeedback()}<div class="full-time">${seekBar()}</div>
-      <div class="full-controls">${iconButton('loop', state.loop ? '关闭队列循环' : '开启队列循环', 'loop', '', state.loop ? 'on' : '')}${playerControls()}</div>
-      <div class="player-volume">${iconButton(engine.volume > 0 ? 'volume' : 'muted', engine.volume > 0 ? '静音' : '取消静音', 'mute')}<input type="range" data-volume min="0" max="1" step=".01" value="${engine.volume}" aria-label="音量"></div>
-    </section>
-    <section class="player-detail" aria-label="歌词、队列与调音台">
-      <div class="player-tabs">${[['lyrics','歌词'],['queue','播放队列'],['dsp','DSP']].map(([key,label]) => `<button aria-pressed="${pane === key}" class="${pane === key ? 'active' : ''}" ${action('player-pane',key)}>${label}${key === 'queue' ? `<small>${state.queue.length}</small>` : ''}</button>`).join('')}</div>
-      ${modeButtons}<div class="player-detail-body ${pane === 'lyrics' ? 'player-lyrics' : ''}">${pane === 'dsp' ? dspView(false) : pane === 'queue' ? queueList() : lyricsView(mode)}</div>
-    </section></div>`;
+  const index = state.queue.findIndex(track => entryKey(track) === entryKey(t));
+  const next = state.queue.length > 1 ? state.queue[(index + 1) % state.queue.length] : null;
+  const emptyTitle = t.isLive ? '正在直播' : t.source === 'local' ? '纯音乐，静静听。' : '听见每一个音符';
+  const emptyMessage = t.isLive ? '实时音源持续播放，无法拖动进度。' : t.source === 'local' ? '这是一首器乐曲，没有歌词。' : state.lyricStatus || '播放后加载歌词';
+  const emptyLyrics = `<div class="instrumental-note"><span class="kicker">${t.isLive ? 'LIVE RADIO' : t.source === 'local' ? 'INSTRUMENTAL' : 'LISTENING'}</span><h3>${emptyTitle}</h3><p>${esc(emptyMessage)}</p></div>${next ? `<button class="listening-next" ${action('next')}>${cover(next,'next-cover')}<span><small>接下来</small><strong>${esc(next.title)}</strong></span>${icon('chevron',16)}</button>` : ''}`;
+  const content = pane === 'lyrics' ? `<header class="listening-heading"><p class="listening-eyebrow">${t.album ? esc(t.album) : '此刻，专注聆听'}</p><h2 id="sheet-title">${esc(t.title)}</h2><button class="artist-link" ${action('current-info')}>${esc(t.artist || sourceNames[t.source])}${icon('chevron',14)}</button></header>
+    <div class="track-meta"><span class="format">${icon('wave',12)} ${esc(quality())}</span><span>${esc(sourceNames[t.source] || '')}</span>${t.source === 'netease' ? `<button class="comments-link" ${action('comments')}>${icon('comments',14)} 评论</button>` : ''}</div>
+    <div class="listening-lyrics player-lyrics">${modeButtons}${state.lyrics.length ? lyricsView(mode) : emptyLyrics}</div>`
+    : `<section class="player-drawer" id="player-${pane}-panel" data-pane="${pane}" aria-labelledby="sheet-title"><header class="player-drawer-head"><div><p class="listening-eyebrow">${pane === 'dsp' ? '调整你的聆听方式' : `${state.queue.length} 首 · 当前播放队列`}</p><h2 id="sheet-title">${pane === 'dsp' ? 'DSP 调音台' : '接下来播放'}</h2></div>${iconButton('close','返回歌曲与歌词','player-pane','lyrics')}</header><div class="player-detail-body">${pane === 'dsp' ? dspView(false) : queueList()}</div></section>`;
+  return `<div class="listening-page"><header class="listening-header"><button class="listening-back" ${action('close')} aria-label="收起播放页">${icon('down',22)}<span>正在播放</span></button><span class="listening-brand">BiliMusic</span></header>
+    <main class="listening-stage"><figure class="record-stage"><div class="record-disc">${cover(t,'record-cover')}<span class="record-spindle" aria-hidden="true"></span></div><figcaption class="record-caption"><span>${esc(sourceNames[t.source] || '音乐')}</span><strong>${esc(quality())}</strong></figcaption></figure><section class="listening-content" aria-label="歌曲、歌词与播放工具">${content}</section></main>
+    <footer class="listening-footer" aria-label="播放控制">${playbackFeedback()}<div class="listening-progress">${seekBar()}</div><div class="listening-bottom">
+      <button class="listening-track" ${action('current-info')}>${cover(t,'mini-art')}<span><strong>${esc(t.title)}</strong><small>${esc(t.artist || sourceNames[t.source])}</small></span></button>
+      <div class="listening-controls"><button class="icon ${state.loop ? 'on' : ''}" ${action('loop')} aria-label="${state.loop ? '关闭' : '开启'}队列循环" aria-pressed="${state.loop}">${icon('loop')}</button>${playerControls()}<button class="icon ${saved ? 'liked' : ''}" ${action('save-current')} aria-label="${saved ? '取消收藏这首歌' : '收藏这首歌'}" aria-pressed="${saved}">${icon('heart')}</button></div>
+      <div class="listening-tools"><div class="player-volume">${iconButton(engine.volume > 0 ? 'volume' : 'muted',engine.volume > 0 ? '静音' : '取消静音','mute')}<input type="range" data-volume min="0" max="1" step=".01" value="${engine.volume}" aria-label="音量"></div>${[['queue','queue','队列'],['dsp','sliders','DSP']].map(([key,glyph,label]) => `<button class="player-tool" ${action('player-pane',key)} aria-expanded="${pane === key}" ${pane === key ? `aria-controls="player-${key}-panel"` : ''} aria-label="${pane === key ? '收起' : '打开'}${label}">${icon(glyph,20)}<span>${label}</span>${key === 'queue' ? `<small>${state.queue.length}</small>` : ''}</button>`).join('')}</div>
+    </div></footer></div>`;
+}
+function setPlayerPane(pane) {
+  const previous = state.playerPane;
+  state.playerPane = ['queue','dsp'].includes(pane) && pane !== previous ? pane : 'lyrics';
+  renderDeck();
+  if (state.playerPane === 'dsp') dspController.start();
+  const focus = state.playerPane === 'lyrics' ? `.player-tool[data-value="${previous}"]` : '.player-drawer-head [data-action="player-pane"]';
+  $('#sheet-body').querySelector(focus)?.focus({preventScroll:true});
 }
 function playerControls() {
   const active = state.playback === 'playing';
@@ -987,6 +1006,10 @@ function saveTrack(item) {
   if (state.sheet === 'info') drawInfo();
 }
 function showSheet(kind, html) {
+  if (kind === 'player' && !$('#sheet').open) {
+    const opener = document.activeElement?.closest('[data-action]');
+    playerOpener = opener ? { action:opener.dataset.action, value:opener.dataset.value || '', zone:opener.closest('#transport,#deck,#sidebar,#content')?.id } : null;
+  }
   if (state.sheet === 'player' && ['dsp', 'info', 'playlist-picker'].includes(kind))
     returnToPlayer = true;
   state.sheet = kind;
@@ -998,6 +1021,7 @@ function showSheet(kind, html) {
   if (kind === 'dsp' || kind === 'player') dspController.start();
 }
 function closeSheet(restore = false) {
+  const wasPlayer = state.sheet === 'player' || returnToPlayer;
   if (state.sheet === 'comments') {
     const parent = commentParent;
     commentParent = null;
@@ -1025,6 +1049,12 @@ function closeSheet(restore = false) {
   }
   if ($('#sheet').open) $('#sheet').close();
   $('#sheet').classList.remove('immersive-sheet');
+  if (wasPlayer) {
+    const scope = playerOpener?.zone ? document.getElementById(playerOpener.zone) : document;
+    const opener = playerOpener && [...scope.querySelectorAll('button[data-action]')].find(button => button.dataset.action === playerOpener.action && (button.dataset.value || '') === playerOpener.value && button.getClientRects().length);
+    (opener || $('#transport [data-action="player"]'))?.focus({preventScroll:true});
+    playerOpener = null;
+  }
 }
 function sheetHead(title) {
   return `<div class="deck-head"><h2 id="sheet-title">${esc(title)}</h2>${iconButton('close', '关闭', 'close')}</div>`;
@@ -1354,33 +1384,32 @@ function dispatch(act, val) {
       renderDeck();
       break;
     case 'show-queue':
-      state.playerDsp = false;
+      state.playerPane = 'queue';
       state.deck = 'queue';
       renderDeck();
       showSheet('player', panel(true));
       break;
     case 'queue-view':
-      state.playerDsp = false;
+      state.playerPane = 'queue';
       state.deck = 'queue';
       renderDeck();
-      $('#sheet-body .deck-tabs')?.scrollIntoView({ block: 'start' });
+      if (state.sheet !== 'player') showSheet('player', panel(true));
+      $('#sheet-body .player-drawer-head button')?.focus();
       break;
     case 'player':
+      state.playerPane = 'lyrics';
       showSheet('player', panel(true));
       refreshTime();
       break;
     case 'deck-tab':
-      state.playerDsp = false;
+      state.playerPane = val === 'lyrics' ? 'lyrics' : 'queue';
       state.deck = val;
       renderDeck();
       if (val === 'lyrics' && state.sheet !== 'player') showSheet('player', panel(true));
       refreshTime();
       break;
     case 'player-pane':
-      state.playerDsp = val === 'dsp';
-      if (!state.playerDsp) state.deck = val === 'lyrics' ? 'lyrics' : 'queue';
-      renderDeck();
-      if (state.playerDsp) dspController.start();
+      setPlayerPane(val);
       break;
     case 'lyric-options': {
       const menu = $('#lyric-options');
@@ -1442,6 +1471,10 @@ document.addEventListener('click', (event) => {
 });
 $('#sheet').addEventListener('cancel', (event) => {
   event.preventDefault();
+  if (state.sheet === 'player' && state.playerPane !== 'lyrics') {
+    setPlayerPane('lyrics');
+    return;
+  }
   const menu = $('#lyric-options');
   if (menu && !menu.hidden) {
     menu.hidden = true;

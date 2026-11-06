@@ -1,4 +1,4 @@
-const CACHE = 'bilimusic-shell-0.4.0-1';
+const CACHE = 'bilimusic-shell-0.4.1-1';
 const SHELL = [
   './index.html',
   './app.css',

@@ -1,9 +1,9 @@
-const { app, BrowserWindow, ipcMain, Menu, net, protocol, session, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, protocol, session, shell } = require('electron');
 const sourceLinks = require('../src/hifi-links.json');
 const { randomUUID } = require('node:crypto');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
 const { checkedSource, requestText, streamMedia } = require('./network.cjs');
+const { staticFileResponse } = require('./static.cjs');
 const biliSession = require('./bili-session.cjs');
 
 app.setName('BiliMusic');
@@ -32,21 +32,13 @@ function sendWindowState() {
 async function route(request) {
   try {
     const url = new URL(request.url);
-    if (url.host !== 'app' || request.method !== 'GET') return new Response(null, { status: 403 });
+    if (url.host !== 'app' || !['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 403 });
     if (request.url.startsWith(mediaPrefix)) {
+      if (request.method !== 'GET') return new Response(null, { status: 403 });
       const source = media.get(request.url);
       return source ? await streamMedia(source, request) : new Response(null, { status: 404 });
     }
-    const root = path.join(__dirname, '..', 'src');
-    const file = path.resolve(root, '.' + decodeURIComponent(url.pathname));
-    const relative = path.relative(root, file);
-    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-      return new Response(null, { status: 403 });
-    }
-    const result = await net.fetch(pathToFileURL(file).href, { headers: request.headers });
-    const headers = new Headers(result.headers);
-    if (/\.m?js$/i.test(file)) headers.set('content-type', 'text/javascript; charset=utf-8');
-    return new Response(result.body, { status: result.status, headers });
+    return await staticFileResponse(request, path.join(__dirname, '..', 'src'));
   } catch {
     return new Response('资源无法读取', { status: 502 });
   }

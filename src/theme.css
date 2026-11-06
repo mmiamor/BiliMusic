@@ -17,7 +17,7 @@ button, input, select, textarea { -webkit-font-smoothing: antialiased; }
 #content, #deck, .nav-scroll, .lyric-lines, dialog { scrollbar-color: #cac3b6 transparent; }
 .brand, .home-heading, .view-title h1, .entity-intro h1, .discovery-heading h1, .settings-heading h1,
 .section-head h2, .discovery-section h2, .discovery-sources h2, .hifi-section h2, .hifi-feature h2,
-.feature-copy h2, .radio-card h3, .player-main .now-title h3, .settings-section > h2 { font-family: var(--font-heading); font-weight: 500; }
+.feature-copy h2, .radio-card h3, .settings-section > h2 { font-family: var(--font-heading); font-weight: 500; }
 .brand { font-size: 23px; letter-spacing: -.9px; }
 .brand-icon { border-radius: 4px; box-shadow: none; }
 .brand-icon, .mobile-app-icon { filter: none; }
@@ -113,7 +113,7 @@ button, input, select, textarea { -webkit-font-smoothing: antialiased; }
 .deck-tabs button.active::after { background: var(--accent); }
 .deck-tabs small { background: #e7dfd1; color: var(--muted); }
 .queue-list button { min-height: 44px; font-size: 12px; border-radius: 2px; }
-.queue-list button.current, .player-detail .queue-list button.current { background: #eee3d7; }
+.queue-list button.current { background: #eee3d7; }
 .queue-list small, .queue-num, .track-index, .track-time, .seekbar > span { color: var(--subtle); }
 .track-row { border-radius: 3px; }
 .track-row:nth-child(even) { background: var(--surface); }
@@ -138,15 +138,6 @@ button, input, select, textarea { -webkit-font-smoothing: antialiased; }
 #mobile-nav button.active { color: var(--accent); }
 dialog:not(.immersive-sheet), #sheet[data-kind='comments'], #sheet.immersive-sheet { background: var(--paper); color: var(--ink); border: 1px solid var(--edge); border-radius: 5px; box-shadow: 0 16px 54px #3c2d1c24; color-scheme: light; }
 dialog::backdrop, #sheet.immersive-sheet::backdrop { background: #30291f45; }
-.player-main .now-title h3 { font-size: 25px; }
-.player-main .full-controls .play-key { background: var(--accent); color: var(--accent-ink); }
-.player-detail { border-color: var(--line); }
-.player-tabs { background: #eae4d8; border-radius: 3px; }
-.player-tabs button { min-height: 44px; border-radius: 2px; font-size: 13px; }
-.player-tabs button.active { background: var(--paper); color: var(--ink); box-shadow: none; }
-.player-detail .queue-list button { border-color: var(--line); }
-.player-lyrics .lyric-line { color: #9a9284; font-weight: 500; }
-.player-lyrics .lyric-line.active { color: var(--ink); }
 .immersive-player { --lyric-white: #24231f; --lyric-muted: #80776b; --lyric-glass: #eae4d8; --lyric-slider: #928474; --lyric-track: #ddd5c7; background: var(--paper); }
 .immersive-backdrop, .immersive-player::before { display: none; }
 .immersive-body .lyric-line, .immersive-body .lyric-line.near, .immersive-body [data-browsing] .lyric-line:not(.active) { color: #938b7e; opacity: 1; filter: none; }
@@ -230,6 +221,5 @@ dialog::backdrop, #sheet.immersive-sheet::backdrop { background: #30291f45; }
   #transport .mini-track strong { font-size: 12px; }
   #transport .mini-track small { font-size: 10px; }
   #sheet[data-kind='player'], #sheet.immersive-sheet { border-radius: 0; }
-  .player-main .now-title h3 { font-size: 23px; }
   .dsp-console input[type='text'], .dsp-console input[type='number'], .dsp-console select { font-size: 16px; }
 }
