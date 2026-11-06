@@ -13,4 +13,5 @@
 @media(max-width:700px){.listening-stage .record-scene .scene-caption{display:none}.listening-stage .record-scene .record-hover{width:min(74%,290px)}[data-view=lyrics] .scene-dock{height:112px;min-height:112px;margin:0 0 12px;transform:scale(.82);opacity:.38}[data-view=lyrics] .record-scene .record-hover{width:130px}}
 @media(max-height:760px) and (min-width:701px){#spatial-player{grid-template-rows:72px minmax(320px,1fr) 178px;min-height:620px}.floating-controls{padding-bottom:13px}.listening-copy{margin-top:28px}.song-heading h1{font-size:44px}.timeline{margin-top:2px}.record-scene{max-height:470px}}
 @media(prefers-reduced-motion:reduce){#spatial-player *,#spatial-player *::before,#spatial-player *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+[data-embedded=true] .prototype-tag{display:none}@media(max-width:700px){[data-embedded=true] #about-toggle{display:none}}
 [data-motion=off] *,[data-motion=off] *::before,[data-motion=off] *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}

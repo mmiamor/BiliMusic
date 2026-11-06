@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>BiliMusic · 音乐空间</title>
+  <link rel="stylesheet" href="space.css"><link rel="stylesheet" href="details.css">
+  <script src="catalog.js" defer></script><script src="../spatial-player/embed.js" defer></script><script src="space.js" defer></script>
+</head>
+<body>
+<div id="music-space" data-theme="day" data-motion="on">
+  <header class="shell-header">
+    <a class="brand" href="#discover" aria-label="BiliMusic 发现音乐">BiliMusic<span class="brand-dot">.</span><span class="brand-caption">音乐，自成空间</span></a>
+    <nav class="main-nav" aria-label="主导航"><button data-route="discover">发现</button><button data-route="search">检索</button><button data-route="library">资料库</button></nav>
+    <div class="header-tools"><span class="concept-label">交互原型</span><button class="icon-button" id="theme-switch" aria-label="切换夜间主题"></button><button class="icon-button" data-route="settings" aria-label="打开设置"></button></div>
+  </header>
+  <main id="page" tabindex="-1"></main>
+  <footer class="mini-player" aria-label="当前播放">
+    <button class="mini-track" id="expand-player" aria-label="展开空间播放器"><img src="../../../src/assets/forest.jpg" alt=""><span class="mini-track-copy"><strong id="mini-title">薄雾序曲</strong><small>BiliMusic Studio <span>· FLAC</span></small></span></button>
+    <div class="mini-transport"><button class="icon-button" id="mini-prev" aria-label="上一首"></button><button class="mini-play" id="mini-play" aria-label="播放"></button><button class="icon-button" id="mini-next" aria-label="下一首"></button></div>
+    <div class="mini-timeline"><span id="mini-elapsed" class="mini-time">0:00</span><input id="mini-seek" class="mini-progress" aria-label="播放进度" type="range" min="0" max="28.263" value="0" step=".1"><span id="mini-duration" class="mini-time">0:28</span></div>
+    <div class="mini-tools"><button class="icon-button" id="mini-like" aria-label="收藏当前歌曲" aria-pressed="false"></button><button class="icon-button" id="mini-queue" aria-label="查看正在播放的歌单"></button></div>
+  </footer>
+  <section id="player-stage" aria-label="空间播放器" hidden><iframe id="player-frame" title="BiliMusic 空间播放器" allow="autoplay" tabindex="-1"></iframe></section>
+  <dialog id="sheet" aria-labelledby="sheet-title"><div class="sheet-header"><div><p class="eyebrow" id="sheet-kicker">YOUR MUSIC SPACE</p><h2 id="sheet-title"></h2></div><button class="icon-button" id="sheet-close" aria-label="关闭面板"></button></div><div class="sheet-body" id="sheet-body"></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+</div>
+</body>
+</html>

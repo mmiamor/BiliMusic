@@ -1,0 +1,42 @@
+/* Small pieces shared by routes; layout and themes live in space.css. */
+#music-space{overflow-x:clip}.main-nav button,.filter-group button,.search-suggestions button{min-width:44px}.search-suggestions button{max-width:100%;overflow-wrap:anywhere}.source-plane::before{left:0;right:0}
+.hero-footnote{font-size:10px;color:var(--muted);margin-top:26px;letter-spacing:.7px}
+.section-note,.library-summary{font-size:11px;color:var(--muted);line-height:1.9;margin:20px 0}
+.editor-number{display:block;font:italic 44px/1 var(--heading);color:var(--accent);opacity:.55;margin-bottom:24px}
+.editor-note>small{display:block;font-size:10px;color:var(--muted);margin-top:12px}
+.search-intro h1 span{color:var(--muted)}
+.is-search-results .search-intro{margin:17px auto 10px}.is-search-results .search-intro h1{font-size:36px;line-height:1.5}.is-search-results .search-intro h1 br{display:none}.is-search-results .search-intro>.eyebrow,.is-search-results .search-intro>p:last-child{display:none}.is-search-results .search-form{margin:12px auto 4px}.is-search-results .search-suggestions{margin-bottom:8px}.is-search-results .search-tools{margin-top:10px}.is-search-results .search-context{margin:4px 0 8px}.is-search-results .source-select{margin:4px 0 14px}
+.source-select{margin:18px 0 24px}.source-select button{min-width:44px}
+.source-stage:has(.source-plane[hidden]){grid-template-columns:minmax(0,1fr);max-width:720px;margin-inline:auto}
+.source-stage:has(.source-plane[hidden]) .source-plane{transform:none}
+.context-dot{display:inline-block;width:5px;height:5px;background:var(--accent);border-radius:50%;margin:0 7px 2px 0}
+.search-context>p{max-width:870px}.search-context>.text-button{flex:none}
+.result-count{font-size:10px;color:var(--muted);margin-bottom:14px}
+.source-status{min-height:185px;padding:30px 4px}.source-status h3{font:400 20px/1.6 var(--heading);margin:22px 0 8px}.source-status p{font-size:11px;color:var(--muted);line-height:1.9}
+.status-line{display:block;width:32px;height:2px;background:var(--accent);opacity:.4}
+.source-retry{margin-top:-22px}.skeleton-line{height:6px;background:var(--soft);width:80%;margin-top:23px;border-radius:4px}.skeleton-line.short{width:55%;margin-top:12px}
+.loading .status-line{animation:search-breathe .8s ease-in-out infinite alternate}@keyframes search-breathe{to{opacity:1;transform:scaleX(1.8);transform-origin:left}}
+.search-bottom-note{display:flex;align-items:center;justify-content:center;gap:15px;margin:46px 0;color:var(--muted);font-size:12px}.search-bottom-note svg{width:19px}
+.library-tabs small{margin-left:8px;opacity:.7;font-size:10px}.library-tracks{max-width:1050px}
+.settings-nav a{min-height:44px;display:flex;align-items:center;font-size:12px;color:var(--muted)}
+.settings-section{scroll-margin-top:25px}.settings-section h2{font:400 27px/1.6 var(--heading);margin-bottom:20px}
+.setting-row h3{font-size:13px;font-weight:500;line-height:1.7;margin-bottom:6px}.setting-row p{font-size:11px;line-height:1.9;color:var(--muted);max-width:480px}
+.account-panel h3{font:400 23px/1.7 var(--heading)}.account-panel p{font-size:11px;line-height:1.9;color:var(--muted);max-width:430px}.account-monogram{width:56px;height:56px;display:grid;place-items:center;border-radius:50%;background:var(--soft);font:26px var(--heading);color:var(--accent);flex:none}
+.toggle-button[aria-checked=true]{background:var(--accent)}.toggle-button[aria-checked=true] span{transform:translateX(20px)}
+.sheet-header h2{font:400 28px/1.5 var(--heading);overflow-wrap:anywhere}.sheet-header>div{min-width:0}.sheet-body{font-size:13px;line-height:1.9}
+.form-field{display:flex;flex-direction:column;gap:8px;margin:18px 0;color:var(--muted);font-size:12px}.form-field input,.form-field select{width:100%;min-width:0;min-height:48px;border:1px solid var(--line);background:var(--wash);color:var(--ink);padding:12px 15px;border-radius:10px}.form-field select{appearance:auto}
+.form-hint,.login-intro{font-size:11px;line-height:1.9;color:var(--muted);margin:16px 0}.sheet-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:25px}.danger{color:var(--accent)}
+.track-choices{border:0;padding:0;margin:20px 0}.track-choices legend{font-size:12px;color:var(--muted);margin-bottom:12px}.track-choices label{display:flex;align-items:center;min-height:50px;gap:12px;cursor:pointer}.track-choices label input{width:20px;height:20px;accent-color:var(--accent)}.track-choices label small{margin-left:auto;color:var(--muted);font-size:11px}
+.playlist-option{display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;width:100%;min-height:60px;border-radius:8px;padding:10px 8px}.playlist-option:hover{background:var(--soft)}.playlist-option>span{display:flex;align-items:center;gap:12px;min-width:0}.playlist-option strong{font-weight:400;overflow-wrap:anywhere}.playlist-option small{font-size:10px;color:var(--muted);flex:none}
+.empty-hint{color:var(--muted);margin:24px 0}.preview-detail{display:grid;grid-template-columns:100px minmax(0,1fr);gap:24px;align-items:start}.preview-detail>img{width:100%;aspect-ratio:1;border-radius:5px;object-fit:cover}.preview-detail .quality-tag{margin-top:12px}.preview-disclaimer{font-size:11px;line-height:1.9;color:var(--muted);margin-top:14px}.queue-sheet .track-row{grid-template-columns:22px minmax(0,1fr) 42px 44px;gap:8px}.queue-sheet .quality-tag,.queue-sheet .track-duration{display:none}
+.flow-steps{padding:0 0 0 22px}.flow-steps li{padding:0 0 22px 8px;color:var(--accent)}.flow-steps strong{font-weight:400;font-size:15px;color:var(--ink)}.flow-steps p{color:var(--muted);font-size:12px;line-height:1.9;margin-top:5px}.about-copy p{margin-bottom:18px;color:var(--muted);line-height:2}
+#login-status{font-size:12px;color:var(--accent);margin:15px 0}#toast{pointer-events:none}
+.player-open{overflow:hidden}#player-stage{position:fixed;inset:0;z-index:90;background:var(--bg)}#player-frame{width:100%;height:100%;position:absolute;inset:0;border:0}
+.mini-track{background:none;border:0;text-align:left}.mini-track-copy strong{font-weight:400}.mini-play{min-width:44px;min-height:44px}.mini-progress{min-height:44px;accent-color:var(--accent)}
+.mini-player .icon-button[aria-pressed=true] svg,.like-button[aria-pressed=true] svg{fill:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent)}
+@media(max-width:760px){.page-topline{flex-wrap:wrap}.search-context{display:block}.search-context .text-button{margin-top:5px}.source-select{gap:1px}.source-select button{padding:8px 11px}.search-bottom-note{flex-wrap:wrap;gap:8px}.search-bottom-note .text-button{flex-basis:100%}.library-toolbar{align-items:flex-start}.setting-row{gap:18px}.setting-row>.filter-group{flex:none}.account-panel{flex-wrap:wrap}.preview-detail{grid-template-columns:76px minmax(0,1fr);gap:16px}.sheet-header h2{font-size:23px}.hero-footnote{font-size:9px}.settings-nav{flex-wrap:wrap}.settings-nav a{padding-right:18px}.queue-sheet .track-row{gap:4px}}
+@media(max-width:380px){.filter-group button{padding-inline:10px}.library-toolbar>.secondary-button{width:100%}.preview-detail{grid-template-columns:1fr}.preview-detail>img{width:85px}.queue-sheet .track-row{grid-template-columns:minmax(0,1fr) 44px 44px}.queue-sheet .track-index{display:none}}
+@media(max-width:760px){.is-search-results .search-intro h1{font-size:25px}.is-search-results .search-intro h1 br{display:initial}.is-search-results .search-context p{font-size:10px}.is-search-results .search-suggestions{justify-content:center}.is-search-results .search-tools{margin-top:8px}.is-search-results .source-select{margin-bottom:14px}}
+@media(max-width:760px){.is-search-results .search-intro{margin:8px 0}.is-search-results .search-intro h1 br,.is-search-results .search-intro h1 span{display:none}.is-search-results .search-context{display:flex;align-items:center;gap:12px}.is-search-results .search-context>.text-button{font-size:10px;white-space:nowrap}.is-search-results .search-tools{gap:0}.is-search-results .source-header{margin-bottom:5px}.is-search-results .source-plane{padding-top:20px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.loading .status-line{animation:none!important}}
+#music-space[data-motion=off] .loading .status-line{animation:none!important}
