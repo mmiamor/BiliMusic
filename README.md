@@ -4,6 +4,8 @@ BiliMusic 支持哔哩哔哩、酷我、网易云音乐和 Radio Paradise 无损
 
 仓库：<https://github.com/mmiamor/BiliMusic>
 
+独立 UI 方案：[空间唱片交互原型](docs/concepts/spatial-player/README.md)，包含 3D 唱片、昼夜光线与动效。方案尚未替换正式播放器。
+
 ## 0.4.1
 
 - 播放页改为铺满应用内容区的静态黑胶布局，左侧唱片封面、右侧歌曲与同步歌词，底部播放控制固定可见。

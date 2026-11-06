@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>BiliMusic · 空间唱片 UI 方案</title>
+  <link rel="stylesheet" href="prototype.css"><link rel="stylesheet" href="scene.css">
+  <script src="prototype.js" defer></script>
+</head>
+<body>
+<main id="spatial-player" data-theme="day" data-motion="on" data-view="listen">
+  <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
+  <header class="app-header">
+    <a class="wordmark" href="#" aria-label="BiliMusic 空间唱片">BiliMusic<span>.</span><small>空间唱片</small></a>
+    <div class="header-actions"><span class="prototype-tag">交互原型</span><button id="motion-toggle" class="quiet-button" aria-pressed="true"><span data-icon="motion"></span><span class="motion-label">动效开启</span></button><button id="theme-toggle" class="icon-button" aria-label="切换至夜间光线" title="切换至夜间光线"><span data-icon="moon"></span></button><button id="about-toggle" class="icon-button" aria-label="查看方案说明" title="查看方案说明"><span data-icon="info"></span></button></div>
+  </header>
+  <section class="listening-stage" aria-label="空间播放场景">
+    <div class="scene-dock">
+      <div class="record-scene" data-playing="false" role="img" aria-label="当前专辑的立体唱片，旋转表示播放状态">
+        <div class="scene-aura" aria-hidden="true"></div><div class="record-shadow" aria-hidden="true"></div>
+        <div class="record-hover"><div class="record-object"><div class="record-edge"></div><div class="record-rotor"><div class="record-face"><img class="record-label" src="../../../src/assets/forest.jpg" alt="山间来信专辑封面" draggable="false"><span class="record-hole"></span></div></div><div class="record-light" aria-hidden="true"></div></div></div>
+        <div class="scene-caption"><span class="caption-dot"></span><span id="scene-state">把片刻，留给音乐</span></div>
+      </div>
+    </div>
+    <div class="song-space">
+      <div class="song-heading"><p class="eyebrow">BILIMUSIC STUDIO · 山间来信</p><h1 id="track-title">薄雾序曲</h1><p class="track-artist">BiliMusic Studio <span>原创器乐 EP</span></p><div class="quality"><span data-icon="wave"></span><span>FLAC · 44.1 kHz</span><span class="quality-dot"></span><span>内置试听</span></div></div>
+      <div class="listening-copy"><p class="listening-line">让声音，有了空间。</p><p class="listening-description">没有分界的画面，<br>只有唱片、光线，和此刻的音乐。</p><button id="enter-lyrics" class="text-button">进入歌词视野 <span data-icon="arrow"></span></button></div>
+      <div class="lyrics-space" aria-label="歌词区域" hidden>
+        <div class="lyrics-note"><span class="eyebrow">INSTRUMENTAL</span><h2>这首歌，让旋律说话。</h2><p>当前试听为器乐曲，没有歌词。</p><button id="demo-lyrics" class="text-button">预览歌词动效 <span data-icon="arrow"></span></button></div>
+        <div id="demo-lines" class="lyric-lines" hidden aria-label="仅用于排版和动效的示例歌词"><small class="demo-label">歌词排版演示 · 非本曲歌词</small><p class="lyric-before">风从远处经过</p><p class="lyric-active">把这一刻，轻轻留住</p><p class="lyric-after">等下一束光，慢慢落下</p><button id="demo-advance" class="text-button">下一句 <span data-icon="arrow"></span></button></div>
+      </div>
+    </div>
+    <aside id="side-wing" class="side-wing" aria-labelledby="wing-title" hidden>
+      <header class="wing-head"><div><p id="wing-kicker" class="eyebrow">YOUR LISTENING SPACE</p><h2 id="wing-title">接下来</h2></div><button id="wing-close" class="icon-button" aria-label="收起面板"><span data-icon="close"></span></button></header>
+      <div id="wing-body" class="wing-body"></div>
+    </aside>
+  </section>
+  <footer class="floating-controls" aria-label="播放控制">
+    <div class="transport"><button id="repeat" class="icon-button secondary" aria-label="开启循环" aria-pressed="false"><span data-icon="repeat"></span></button><button id="previous" class="icon-button" aria-label="上一首"><span data-icon="previous"></span></button><button id="play" class="play-button" aria-label="播放"><span data-icon="play"></span></button><button id="next" class="icon-button" aria-label="下一首"><span data-icon="next"></span></button><button id="favorite" class="icon-button secondary" aria-label="收藏歌曲" aria-pressed="false"><span data-icon="heart"></span></button></div>
+    <div class="timeline"><span id="elapsed">0:00</span><input id="seek" type="range" min="0" max="28.263" value="0" step=".1" aria-label="播放进度"><span id="duration">0:28</span></div>
+    <div class="tool-line"><div class="view-options" aria-label="场景视野"><button id="listen-view" class="view-button active" aria-pressed="true">聆听</button><button id="lyrics-view" class="view-button" aria-pressed="false">歌词</button></div><div class="sound-tools"><button id="mute" class="icon-button" aria-label="静音"><span data-icon="volume"></span></button><input id="volume" type="range" min="0" max="1" step=".01" value=".55" aria-label="音量"><button id="queue-toggle" class="quiet-button" aria-expanded="false" aria-controls="side-wing"><span data-icon="queue"></span><span>队列</span><small>3</small></button><button id="dsp-toggle" class="quiet-button" aria-expanded="false" aria-controls="side-wing"><span data-icon="sliders"></span><span>音效</span></button></div></div>
+  </footer>
+  <div id="status" class="status-message" role="status" aria-live="polite"></div>
+  <audio id="audio" preload="metadata" src="../../../src/assets/mist.flac"></audio>
+</main>
+</body>
+</html>

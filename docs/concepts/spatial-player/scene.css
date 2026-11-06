@@ -1,0 +1,303 @@
+/*
+ * CSS 3D record scene for the standalone Spatial Player concept.
+ * The host owns layout, playback and requestAnimationFrame integration.
+ * Inputs on .record-scene:
+ *   --pointer-x / --pointer-y: unitless, clamped to [-1, 1]
+ *   --spin-angle: an accumulated angle; never reset when pausing
+ *   --lift: a length, normally between -2px and 2px
+ * Theme/motion are inherited from #spatial-player[data-theme][data-motion].
+ */
+.record-scene {
+  --pointer-x: 0;
+  --pointer-y: 0;
+  --spin-angle: 0deg;
+  --lift: 0px;
+  --record-size: 480px;
+  --scene-ink: #302b24;
+  --scene-muted: #857b6d;
+  --scene-floor: #bca986;
+  --scene-glow: #e9cf9d;
+  --scene-shadow: #433725;
+  --scene-rim: #c2af87;
+  --scene-rim-soft: #dbcaa6;
+  --scene-label-ring: #ac9871;
+  --scene-face-a: #20211d;
+  --scene-face-b: #292a25;
+  --scene-face-c: #171916;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 1.08;
+  isolation: isolate;
+  perspective: 1300px;
+  perspective-origin: 50% 40%;
+  overflow: visible;
+  color: var(--scene-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The light spills into the host surface rather than defining a card. */
+.record-scene .scene-aura {
+  position: absolute;
+  z-index: -2;
+  inset: 2% -10% -8%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 48% 67%, var(--scene-floor) 0%, transparent 57%),
+    radial-gradient(ellipse at 41% 31%, var(--scene-glow) 0%, transparent 62%);
+  opacity: .19;
+  filter: blur(38px);
+  pointer-events: none;
+}
+
+.record-scene .record-shadow {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 69%;
+  width: 73%;
+  max-width: 460px;
+  height: 16%;
+  min-height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, var(--scene-shadow) 0%, transparent 69%);
+  opacity: .3;
+  filter: blur(18px);
+  transform: translate3d(calc(-50% + var(--pointer-x) * -8px), calc(var(--pointer-y) * 3px), 0) rotate(-8deg);
+  transition: transform 320ms cubic-bezier(.2,.65,.3,1), opacity 450ms ease;
+  pointer-events: none;
+}
+
+.record-scene .record-hover {
+  position: relative;
+  width: min(84%, var(--record-size));
+  aspect-ratio: 1;
+  transform: translate3d(0, calc(-16px + var(--lift)), 0);
+  transform-style: preserve-3d;
+}
+
+.record-scene .record-object {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  transform:
+    rotateX(calc(23deg + var(--pointer-y) * -4deg))
+    rotateY(calc(-15deg + var(--pointer-x) * 5deg))
+    rotateZ(-7deg);
+  transition: transform 260ms cubic-bezier(.18,.65,.28,1);
+  will-change: transform;
+}
+
+/* A separate lower face and narrow stacked edges give the disc its thickness. */
+.record-scene .record-edge {
+  position: absolute;
+  inset: 0;
+  border: 1px solid #77715c;
+  border-radius: 50%;
+  background: #161814;
+  box-shadow:
+    0 1px 0 #666450,
+    0 2px 0 #1b1c17,
+    0 3px 0 #31332a,
+    0 4px 0 #161813,
+    0 5px 0 #4e4d3d,
+    0 7px 0 #171913,
+    0 13px 22px #211a161b;
+  transform: translateZ(-5px);
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+.record-scene .record-edge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid #272a22;
+  border-radius: inherit;
+  background: linear-gradient(110deg, #6a68544d, #171913 30% 66%, #9d906a5c);
+  transform: translateZ(4px);
+}
+
+.record-scene .record-rotor {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transform: translateZ(6px) rotateZ(var(--spin-angle));
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform;
+  /* Angular velocity is integrated by the host, not by CSS duration changes. */
+  transition: none;
+}
+
+.record-scene .record-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #0d100d;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, transparent 0 56%, #b7ab8724 56.2% 56.4%, transparent 56.7%),
+    repeating-radial-gradient(circle at center, var(--scene-face-a) 0 1px, var(--scene-face-b) 1px 1.7px, var(--scene-face-c) 1.7px 3.4px);
+  box-shadow: inset 0 0 0 3px #141712, inset 0 0 0 4px #a7986a21;
+  backface-visibility: hidden;
+}
+.record-scene .record-face::before {
+  content: '';
+  position: absolute;
+  inset: 2.2%;
+  border: 1px solid #b4a37b30;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.record-scene .record-face::after {
+  content: '';
+  position: absolute;
+  inset: 23.5%;
+  border: 1px solid #837b5d5e;
+  border-radius: 50%;
+  box-shadow: 0 0 0 7px #191b1770, 0 0 0 8px #776c4e25;
+  pointer-events: none;
+}
+
+.record-scene .record-label {
+  position: absolute;
+  inset: 28%;
+  display: block;
+  width: 44%;
+  height: 44%;
+  margin: 0;
+  border: 1px solid var(--scene-label-ring);
+  border-radius: 50%;
+  object-fit: cover;
+  background: #b5a588;
+  box-shadow: 0 0 0 5px #1c1e18, inset 0 0 12px #0c100c3b;
+  filter: saturate(.8) contrast(.97);
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.record-scene .record-hole {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #d6c5a0;
+  border-radius: 50%;
+  background: #191c17;
+  box-shadow: 0 0 0 1px #4c4634, 0 0 0 7px #b5a17c21;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Metal contour and studio reflection remain fixed while the grooves rotate. */
+.record-scene .record-object::after {
+  content: '';
+  position: absolute;
+  inset: -.3%;
+  border: 1px solid var(--scene-rim);
+  border-right-color: #6b654f;
+  border-bottom-color: #4e4e3f;
+  border-radius: 50%;
+  box-shadow: 0 -1px 0 var(--scene-rim-soft), inset 0 1px 0 #e4d5ad55;
+  opacity: .75;
+  transform: translateZ(7px);
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+.record-scene .record-light {
+  position: absolute;
+  inset: .7%;
+  border-radius: 50%;
+  background:
+    conic-gradient(from -40deg, transparent 0 7%, #eee6ce19 15%, #eee6ce04 25%, transparent 31% 52%, #dfc99216 62%, transparent 73%),
+    radial-gradient(ellipse at calc(27% + var(--pointer-x) * 4%) calc(18% + var(--pointer-y) * 3%), #ffffff0b, transparent 55%);
+  opacity: .8;
+  transform: translateZ(8px);
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+.record-scene .scene-caption {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 0;
+  margin: 0;
+  text-align: center;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.8;
+  font-weight: 400;
+  letter-spacing: 1.6px;
+  color: var(--scene-muted);
+  pointer-events: none;
+}
+.record-scene .scene-caption strong { font-weight: 400; color: var(--scene-ink); }
+
+#spatial-player[data-theme='night'] .record-scene {
+  --scene-ink: #e4d8c5;
+  --scene-muted: #9a8d78;
+  --scene-floor: #957746;
+  --scene-glow: #a1834c;
+  --scene-shadow: #000000;
+  --scene-rim: #a08c64;
+  --scene-rim-soft: #c8af7b;
+  --scene-label-ring: #8f805b;
+  --scene-face-a: #191b17;
+  --scene-face-b: #272a21;
+  --scene-face-c: #12150f;
+}
+#spatial-player[data-theme='night'] .record-scene .scene-aura { opacity: .13; }
+#spatial-player[data-theme='night'] .record-scene .record-shadow { opacity: .8; filter: blur(22px); }
+#spatial-player[data-theme='night'] .record-scene .record-light { opacity: 1; }
+#spatial-player[data-theme='night'] .record-scene .record-label { filter: saturate(.7) brightness(.86); }
+
+@media (max-width: 720px) {
+  .record-scene { --record-size: 350px; perspective: 1000px; perspective-origin: 50% 38%; }
+  .record-scene .record-hover { width: min(78%, var(--record-size)); transform: translate3d(0, calc(-8px + var(--lift)), 0); }
+  .record-scene .record-object { transform: rotateX(calc(19deg + var(--pointer-y) * -2deg)) rotateY(calc(-12deg + var(--pointer-x) * 3deg)) rotateZ(-7deg); }
+  .record-scene .record-shadow { top: 67%; width: 66%; height: 14%; opacity: .25; filter: blur(15px); }
+  .record-scene .scene-aura { inset: 5% -5% -5%; filter: blur(25px); }
+  .record-scene .scene-caption { bottom: 1%; font-size: 9px; letter-spacing: 1px; }
+  .record-scene .record-hole { width: 8px; height: 8px; }
+}
+
+@media (hover: none) {
+  .record-scene .record-object { transition-duration: 0ms; }
+}
+
+/* Both the explicit preference and the OS preference stop every scene motion. */
+#spatial-player[data-motion='off'] .record-scene {
+  --pointer-x: 0 !important;
+  --pointer-y: 0 !important;
+  --spin-angle: 0deg !important;
+  --lift: 0px !important;
+}
+#spatial-player[data-motion='off'] .record-scene *,
+#spatial-player[data-motion='off'] .record-scene *::before,
+#spatial-player[data-motion='off'] .record-scene *::after { animation: none !important; transition: none !important; will-change: auto !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .record-scene {
+    --pointer-x: 0 !important;
+    --pointer-y: 0 !important;
+    --spin-angle: 0deg !important;
+    --lift: 0px !important;
+  }
+  .record-scene *, .record-scene *::before, .record-scene *::after { animation: none !important; transition: none !important; will-change: auto !important; }
+}
+
+@supports not (transform-style: preserve-3d) {
+  .record-scene .record-object { transform: rotate(-7deg); }
+  .record-scene .record-edge { display: none; }
+  .record-scene .record-rotor { transform: rotate(var(--spin-angle)); }
+}
