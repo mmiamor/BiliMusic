@@ -4,6 +4,13 @@ BiliMusic 支持哔哩哔哩、酷我、网易云音乐和 Radio Paradise 无损
 
 仓库：<https://github.com/mmiamor/BiliMusic>
 
+## 0.3.3
+
+- Windows 窗口按钮移到右上角，顺序为最小化、最大化/还原、关闭。浅色界面保持无动画。
+- 侧栏新增“设置”，集中管理哔哩哔哩官方登录、账号状态刷新与退出登录。手机窄屏底栏也可进入设置。
+- 设置页支持选择下次启动的发现分类、开关 DSP 和打开调音台，显示当前平台与版本。
+- 关闭登录窗口后重新确认账号；查询失败单独显示，不会误报退出。账号发生变化时，重新获取音质和当前 B 站音轨。
+
 ## 0.3.2
 
 - B 站首页默认“Hi-Res 优先”：候选内容立即显示，每页后台核验前六首新投稿，当前账号返回且设备支持解码的 Hi-Res 优先排序。标题中的 Hi-Res/无损字样只作为搜索线索，不作为认证。
@@ -19,11 +26,11 @@ BiliMusic 支持哔哩哔哩、酷我、网易云音乐和 Radio Paradise 无损
 
 此前版本已完成：
 
-- macOS 风格的浅色界面、原创音符图标与红黄绿窗口控制，移除二次元装饰、渐变氛围背景和界面动画。
+- macOS 风格的浅色界面与原创音符图标，移除二次元装饰、渐变氛围背景和界面动画。
 - 播放详情采用双栏布局：左侧保留歌曲、封面、进度和主控制；右侧切换歌词、队列和十段 DSP。小窗口改为纵向布局。
 - 修复 Windows 读取哔哩哔哩合集时的 `net::ERR_BLOCKED_BY_CLIENT`，保留平台会话和域名白名单。
 
-本仓库是当前开发源码，0.3.2 尚未更新到公开站点。界面取舍见 [发现页设计](docs/discovery-design.md) 与 [播放页设计](docs/player-design.md)，可下载 [发现页交互原型](docs/discovery-prototype.html) 后本地打开。
+本仓库是当前开发源码，0.3.3 尚未更新到公开站点。界面取舍见 [设置页设计](docs/settings-design.md)、[发现页设计](docs/discovery-design.md) 与 [播放页设计](docs/player-design.md)，可下载 [发现页交互原型](docs/discovery-prototype.html) 后本地打开。
 
 ![Hi-Res 优先发现，音质按实际核验结果显示](docs/hifi-discovery.webp)
 

@@ -8,9 +8,9 @@ if (controls) {
   titlebar.setAttribute('aria-label', '窗口标题栏');
   titlebar.innerHTML = `
     <div class="window-controls" role="group" aria-label="窗口操作">
-      <button type="button" class="window-button window-close" data-window="close" aria-label="关闭窗口" title="关闭窗口"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3.5 3.5 5 5m0-5-5 5"/></svg></button>
-      <button type="button" class="window-button window-minimize" data-window="minimize" aria-label="最小化窗口" title="最小化窗口"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 6h6"/></svg></button>
-      <button type="button" class="window-button window-maximize" data-window="toggleMaximize" aria-label="最大化窗口" title="最大化窗口"><svg viewBox="0 0 12 12" aria-hidden="true"><path class="maximize-mark" d="M3 7V3h4m2 2v4H5"/><path class="restore-mark" d="M5.5 2.5v3h-3m7 1h-3v3"/></svg></button>
+      <button type="button" class="window-button window-minimize" data-window="minimize" aria-label="最小化窗口" title="最小化窗口"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1 6.5h10"/></svg></button>
+      <button type="button" class="window-button window-maximize" data-window="toggleMaximize" aria-label="最大化窗口" title="最大化窗口"><svg viewBox="0 0 12 12" aria-hidden="true"><path class="maximize-mark" d="M1.5 1.5h9v9h-9z"/><path class="restore-mark" d="M4 3.5V1.5h6.5V8H8.5M1.5 3.5h7v7h-7z"/></svg></button>
+      <button type="button" class="window-button window-close" data-window="close" aria-label="关闭窗口" title="关闭窗口"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m1.5 1.5 9 9m0-9-9 9"/></svg></button>
     </div>
     <span class="window-title">BiliMusic</span>`;
   document.body.prepend(titlebar);

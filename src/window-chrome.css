@@ -1,5 +1,6 @@
 html.desktop-shell {
   --window-chrome-height: 38px;
+  --window-controls-width: 138px;
 }
 
 html.desktop-shell body {
@@ -14,7 +15,7 @@ html.desktop-shell body {
   align-items: center;
   justify-content: center;
   height: var(--window-chrome-height);
-  padding: 0 14px;
+  padding: 0 var(--window-controls-width);
   border-bottom: 1px solid #00000012;
   background: #f3f3f5;
   color: #454549;
@@ -26,7 +27,7 @@ html.desktop-shell body {
 
 .window-controls {
   position: absolute;
-  left: 11px;
+  right: 0;
   top: 0;
   display: flex;
   align-items: center;
@@ -40,57 +41,50 @@ html.desktop-shell body {
   position: relative;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 28px;
+  width: 46px;
+  height: 100%;
   padding: 0;
   border: 0;
-  border-radius: 5px;
-  color: #0009;
+  border-radius: 0;
+  color: #454549;
   background: transparent;
   cursor: default;
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
 
-.window-button::before {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border: 1px solid #00000015;
-  border-radius: 50%;
-  background: var(--window-button-color);
-  content: '';
-}
-
-.window-close { --window-button-color: #ff5f57; }
-.window-minimize { --window-button-color: #febc2e; }
-.window-maximize { --window-button-color: #28c840; }
-
 .window-button svg {
   position: relative;
   width: 12px;
   height: 12px;
-  opacity: 0;
+  opacity: 1;
   stroke: currentColor;
-  stroke-width: 1.1;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  stroke-width: 1;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
   fill: none;
 }
 
-.window-controls:hover .window-button svg,
-.window-button:focus-visible svg { opacity: 1; }
-.window-button:focus-visible { outline: 2px solid #007aff; outline-offset: 0; }
-.window-button:active::before { filter: brightness(.85); }
+.window-button:hover { background: #0000000b; }
+.window-button:active { background: #00000015; }
+.window-button:focus-visible { outline: 2px solid #007aff; outline-offset: -3px; }
+.window-close:hover { color: #fff; background: #c42b1c; }
+.window-close:active { color: #fff; background: #a52418; }
 .window-button .restore-mark { display: none; }
 .window-maximized .window-button .maximize-mark { display: none; }
 .window-maximized .window-button .restore-mark { display: block; }
 .window-inactive .window-chrome { color: #8d8d92; background: #f6f6f7; }
-.window-inactive .window-button::before { background: #d1d1d5; }
-.window-inactive .window-controls:hover .window-button::before { background: var(--window-button-color); }
+.window-inactive .window-button { color: #8d8d92; }
+.window-inactive .window-button:hover { color: #454549; }
+.window-inactive .window-close:hover { color: #fff; }
 
 .window-title {
+  min-width: 0;
+  max-width: 100%;
   padding: 8px 18px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }

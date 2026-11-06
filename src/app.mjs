@@ -8,6 +8,9 @@ import { installViewport } from './viewport.mjs';
 import { DiscoveryFeed } from './discovery-feed.mjs';
 import { DISCOVERY_CATEGORIES } from './discovery-categories.mjs';
 import { RADIO_STATIONS } from './radio.mjs';
+import { renderSettings } from './settings-view.mjs';
+import { AccountController, parseAccountResponse, readPreferences, savePreferences, validStartCategory } from './settings-model.mjs';
+import { APP_VERSION } from './app-version.mjs';
 
 installWebBridge();
 installViewport();
@@ -86,10 +89,8 @@ let rows = [],
   previousPage = 'home',
   searchError = '',
   browseError = '';
-let entityParents = [],
-  accountName = '',
-  accountBusy = false,
-  accountChecked = false;
+let entityParents = [];
+const preferences = readPreferences(localStorage);
 let homeGroups = {}, selectedQueue = [];
 let officialLinks = Object.create(null);
 void fetch('./hifi-links.json').then(response => response.json()).then(links => { officialLinks = links; }).catch(() => {});
@@ -97,6 +98,7 @@ const labels = {
   home: '发现音乐',
   search: '音源搜索',
   hifi: 'Hi-Fi 音源',
+  settings: '设置',
   library: '我的资料库',
   entity: '详情',
   ...Object.fromEntries(Object.entries(sectionInfo).map(([k, [label]]) => [k, label])),
@@ -110,7 +112,26 @@ const shortType = {
 };
 const discovery = new DiscoveryFeed((category, page) => api.discover(category, page), () => {
   if (state.page === 'home') renderView();
-}, { qualityFetcher: tracks => api.inspectQuality(tracks) });
+}, { qualityFetcher: tracks => api.inspectQuality(tracks), defaultCategory: preferences.startCategory });
+const accountController = new AccountController({
+  read: async () => {
+    if (window.biliNative?.getAccount) return window.biliNative.getAccount();
+    if (!window.biliNative?.request) throw new Error('当前环境无法连接账号服务。');
+    return parseAccountResponse(await window.biliNative.request({ url: 'https://api.bilibili.com/x/web-interface/nav', headers: { Referer: 'https://www.bilibili.com/' } }));
+  },
+  login: window.biliNative?.loginBilibili ? () => window.biliNative.loginBilibili() : undefined,
+  logout: window.biliNative?.logoutBilibili ? () => window.biliNative.logoutBilibili() : undefined,
+  onChange: () => { if (['settings','search'].includes(state.page)) renderView(); },
+  onSessionChanged: () => {
+    api.resetBilibiliSession?.();
+    discovery.invalidate();
+    if (state.page === 'home') void discovery.load();
+    if (state.current.source === 'bilibili' && (engine.stream || state.playback === 'loading')) {
+      const resume = { position: currentTime(), paused: state.playback === 'paused' };
+      void playTrack(state.current, state.queue, resume);
+    }
+  },
+});
 const action = (name, value = '') => `data-action="${esc(name)}" data-value="${esc(value)}"`;
 function iconButton(name, title, act, value = '', extra = '') {
   return `<button type="button" class="icon ${extra}" title="${esc(title)}" aria-label="${esc(title)}" ${action(act, value)}>${icon(name)}</button>`;
@@ -141,13 +162,14 @@ function sidebar() {
     <h2 class="nav-caption second">我的资料库</h2>
     ${Object.entries(sectionInfo)
       .map(([key, [label, glyph]]) => nav(label, glyph, key, library.list(key).length))
-      .join('')}</div>
+      .join('')}<div class="sidebar-settings">${nav('设置', 'settings', 'settings')}</div></div>
     <button class="sidebar-dsp" ${action('dsp')}><span class="dsp-pin">${icon('sliders', 19)}</span><span><strong>DSP 调音台</strong><small>${engine.dsp.enabled ? esc(preset) : '已旁通'}</small></span>${icon('chevron', 15)}</button>`;
   $('#mobile-nav').innerHTML = [
     ['home', 'discover', '发现'],
     ['search', 'search', '搜索'],
     ['library', 'library', '资料库'],
     ['dsp', 'sliders', '调音台'],
+    ['settings', 'settings', '设置'],
   ]
     .map(
       ([page, glyph, label]) =>
@@ -188,7 +210,7 @@ function home() {
   return `<div class="discovery-page"><header class="discovery-heading"><div><h1>发现音乐</h1><p class="discovery-subtitle">找到下一首，想要单曲循环的歌。</p></div><button class="refresh-action" ${action('discover-refresh')} ${feed.loading ? 'disabled' : ''}>${icon('history',15)} ${feed.loading ? '更新中' : '刷新'}</button></header>
     <div class="discovery-categories" role="group" aria-label="音乐分类">${DISCOVERY_CATEGORIES.map(item => `<button ${action('discover-category',item.id)} aria-pressed="${item.id === discovery.category}" class="${item.id === discovery.category ? 'selected' : ''}">${esc(item.title)}</button>`).join('')}</div>
     <div class="discovery-caption"><span>${esc(feed.description || '哔哩哔哩音乐分区')}</span>${feed.fetchedAt ? `<span>更新于 ${new Date(feed.fetchedAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}</div>
-    ${feedback}${discovery.category === 'hires' ? `<p class="quality-explainer" role="status">${feed.qualityLoading ? '正在核验音轨，Hi-Res 可用曲目会优先显示。' : hiResCount ? '已确认 '+hiResCount+' 首 Hi-Res 可用，其余曲目点播时确认。' : '当前尚未确认可用的 Hi-Res，可登录哔哩哔哩后刷新。'} 标题描述不作为音质认证。 <button class="text-action" ${action('source','bilibili')}>登录与音源搜索</button></p>` : ''}${featured}
+    ${feedback}${discovery.category === 'hires' ? `<p class="quality-explainer" role="status">${feed.qualityLoading ? '正在核验音轨，Hi-Res 可用曲目会优先显示。' : hiResCount ? '已确认 '+hiResCount+' 首 Hi-Res 可用，其余曲目点播时确认。' : '当前尚未确认可用的 Hi-Res，可登录哔哩哔哩后刷新。'} 标题描述不作为音质认证。 <button class="text-action" ${action('nav','settings')}>账号设置</button></p>` : ''}${featured}
     ${homeGroups.recent.length ? `<section class="discovery-section recent-section"><div class="section-head"><h2>接着听</h2><button class="text-action" ${action('nav','history')}>查看全部 ${icon('chevron',12)}</button></div><div class="recent-grid">${homeGroups.recent.map((track,i) => `<button class="recent-track" ${action('home-track',homeValue('recent',track))} aria-label="播放 ${esc(track.title)}">${cover(track,'thumb')}<span><strong>${esc(track.title)}</strong><small>${esc(track.artist || sourceNames[track.source])}</small></span>${icon('play',14)}</button>`).join('')}</div></section>` : ''}
     ${recommendations}<section class="discovery-sources"><header><h2>更多音源</h2><button class="text-action" ${action('nav','hifi')}>探索 Hi-Fi 音源 ${icon('chevron',12)}</button></header><div>${sourceCard('bilibili','哔哩哔哩','投稿与合集')}${sourceCard('kuwo','酷我音乐','歌曲与专辑')}${sourceCard('netease','网易云音乐','音乐与评论')}</div></section>
     <details class="offline-session"><summary>离线试听 · 山间来信</summary><p>三首内置器乐曲，可在没有网络时试听设备。</p><div>${session.map((track,i)=>`<button ${action('home-track',homeValue('offline',track))}>${icon('play',12)} ${esc(track.title)} <small>${fmt(track.duration)}</small></button>`).join('')}</div></details></div>`;
@@ -347,7 +369,7 @@ function searchPage() {
     body += `<button class="more" ${action('more-search')}>加载更多</button>`;
   const account =
     state.searchSource === 'bilibili' && window.biliNative?.loginBilibili
-      ? `<button class="account-button" ${action('account')} ${accountBusy ? 'disabled' : ''}>${icon('user', 14)} ${accountBusy ? '正在处理…' : accountName ? esc(accountName) + ' · 退出' : '登录哔哩哔哩'}</button>`
+      ? `<button class="account-button" ${action('nav','settings')}>${icon('user', 14)} ${accountController.state.status === 'signed-in' ? esc(accountController.state.name) + ' · 账号设置' : '账号与登录'}</button>`
       : '';
   return (
     viewTitle('音源搜索', '') +
@@ -363,51 +385,17 @@ function searchPage() {
     body
   );
 }
-async function checkAccount() {
-  accountChecked = true;
-  try {
-    if (window.biliNative.getAccount) {
-      const data = await window.biliNative.getAccount();
-      accountName = data.loggedIn ? data.name || '已登录' : '';
-    } else {
-      const response = await window.biliNative.request({
-        url: 'https://api.bilibili.com/x/web-interface/nav',
-        headers: { Referer: 'https://www.bilibili.com/' },
-      });
-      const data = JSON.parse(response.body).data;
-      accountName = data?.isLogin ? data.uname || '已登录' : '';
-    }
-  } catch {
-    accountChecked = false;
-  }
-  if (state.page === 'search') renderView();
+function checkAccount() { return accountController.refresh(); }
+async function changeAccount(kind) {
+  const previous = accountController.state.status;
+  const result = await accountController.change(kind);
+  if (result.status === 'error') notify(result.error);
+  else if (kind === 'login' && previous === 'signed-out' && result.status === 'signed-in') notify('已登录 ' + result.name);
+  else if (kind === 'logout' && previous === 'signed-in' && result.status === 'signed-out') notify('已退出哔哩哔哩');
 }
-async function changeAccount() {
-  if (accountBusy || !window.biliNative?.loginBilibili) return;
-  const logout = Boolean(accountName);
-  accountBusy = true;
-  renderView();
-  try {
-    if (logout) await window.biliNative.logoutBilibili();
-    else await window.biliNative.loginBilibili();
-    api.resetBilibiliSession?.();
-    discovery.invalidate();
-    if (state.page === 'home') void discovery.load();
-    await checkAccount();
-    if (!accountChecked) notify('暂时无法读取登录状态，请稍后重试');
-    else if (logout || accountName) {
-      notify(accountName ? '已登录 ' + accountName : '已退出哔哩哔哩');
-      if (state.current.source === 'bilibili' && engine.stream) {
-        const resume = { position: currentTime(), paused: engine.media.paused };
-        await playTrack(state.current, state.queue, resume);
-      }
-    }
-  } catch (e) {
-    notify(e.message || '登录窗口暂时无法打开');
-  } finally {
-    accountBusy = false;
-    if (state.page === 'search') renderView();
-  }
+function settingsPage() {
+  return renderSettings({ account: accountController.state, loginAvailable: Boolean(window.biliNative?.loginBilibili),
+    defaultCategory: preferences.startCategory, dsp: engine.dsp, platform: window.biliNative?.platform, version: APP_VERSION }, { icon, esc, action });
 }
 function entityPage() {
   const e = state.entity;
@@ -446,11 +434,12 @@ function entityPage() {
   );
 }
 function renderView() {
+  document.body?.setAttribute('data-page', state.page);
   const content = $('#content'), scroll = content.scrollTop;
   const focused = content.contains(document.activeElement) ? { ...document.activeElement.dataset } : null;
   sidebar();
   $('#crumb').innerHTML = state.page === 'home' ? `<button ${action('nav','home')}>音乐馆</button>` :
-    `<button ${action('nav', ['home','search','hifi'].includes(state.page) ? 'home' : 'library')}>${['home', 'search', 'hifi'].includes(state.page) ? '音乐馆' : '资料库'}</button>${icon('chevron', 12)}<strong>${esc(labels[state.page])}</strong>`;
+    `<button ${action('nav', ['home','search','hifi','settings'].includes(state.page) ? 'home' : 'library')}>${['home', 'search', 'hifi', 'settings'].includes(state.page) ? '音乐馆' : '资料库'}</button>${icon('chevron', 12)}<strong>${esc(labels[state.page])}</strong>`;
   rows = [];
   entityCards = [];
   $('#content').innerHTML =
@@ -460,22 +449,17 @@ function renderView() {
         ? searchPage()
         : state.page === 'entity'
           ? entityPage()
-          : state.page === 'hifi' ? hifiPage() : libraryPage(state.page);
+          : state.page === 'hifi' ? hifiPage() : state.page === 'settings' ? settingsPage() : libraryPage(state.page);
   content.scrollTop = scroll;
   if (focused?.action) [...content.querySelectorAll('[data-action]')].find(el => el.dataset.action === focused.action && el.dataset.value === focused.value)?.focus({preventScroll:true});
+  if (focused?.setting) [...content.querySelectorAll('[data-setting]')].find(el => el.dataset.setting === focused.setting)?.focus({preventScroll:true});
 }
 function navigate(page) {
   if (!Object.hasOwn(labels, page)) return;
   if (state.sheet) closeSheet();
   state.page = page;
   renderView();
-  if (
-    page === 'search' &&
-    state.searchSource === 'bilibili' &&
-    !accountChecked &&
-    window.biliNative?.loginBilibili
-  )
-    void checkAccount();
+  if (page === 'settings' || (page === 'search' && state.searchSource === 'bilibili' && accountController.state.status === 'unknown')) void checkAccount();
   $('#content').scrollTop = 0;
   if (page === 'home') void discovery.load();
 }
@@ -1123,6 +1107,15 @@ function updateCustom() {
 }
 function dispatch(act, val) {
   switch (act) {
+    case 'settings-login':
+      void changeAccount('login');
+      break;
+    case 'settings-logout':
+      void changeAccount('logout');
+      break;
+    case 'settings-account-refresh':
+      void checkAccount();
+      break;
     case 'hifi-bili':
       void discovery.select('hires');
       navigate('home');
@@ -1230,7 +1223,7 @@ function dispatch(act, val) {
       entityTab(val);
       break;
     case 'account':
-      void changeAccount();
+      navigate('settings');
       break;
     case 'example':
       $('#global-search').value =
@@ -1446,6 +1439,15 @@ document.addEventListener('input', ({ target: el }) => {
   }
 });
 document.addEventListener('change', ({ target: el }) => {
+  if (el.matches('[data-setting="start-category"]')) {
+    if (!validStartCategory(el.value)) return;
+    preferences.startCategory = el.value;
+    if (!savePreferences(localStorage, preferences)) notify('本机储存不可用，设置仅在当前会话有效。');
+  }
+  if (el.matches('[data-setting="dsp-enabled"]')) {
+    engine.setDSP({ enabled: el.checked });
+    renderView();
+  }
   if (el.matches('[data-seek]') && engine.stream && !state.current?.isLive) engine.seek(+el.value);
   if (el.matches('[data-dsp="enabled"],[data-dsp="limiter"]'))
     engine.setDSP({ [el.dataset.dsp]: el.checked });
@@ -1454,7 +1456,10 @@ document.addEventListener('change', ({ target: el }) => {
     if (state.sheet === 'player') renderDeck();
     else $('#sheet-body').innerHTML = dspView();
   }
-  if (el.matches('[data-dsp],[data-band]')) sidebar();
+  if (el.matches('[data-dsp],[data-band]')) {
+    sidebar();
+    if (state.page === 'settings') renderView();
+  }
 });
 document.addEventListener(
   'error',
