@@ -175,7 +175,7 @@ test('player controls show playing again after a mid-song decoder error selects 
   const nodes = new Map();
   const document = new EventTarget();
   document.querySelector = selector => {
-    if (!nodes.has(selector)) nodes.set(selector, new EventTarget());
+    if (!nodes.has(selector)) nodes.set(selector, Object.assign(new EventTarget(), { scrollTop: 0, contains: () => false }));
     return nodes.get(selector);
   };
   document.querySelectorAll = () => [];

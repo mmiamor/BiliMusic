@@ -1,10 +1,13 @@
-const CACHE = 'bilimusic-shell-0.3.0-1';
+const CACHE = 'bilimusic-shell-0.3.1-1';
 const SHELL = [
   './index.html',
   './app.css',
   './lyrics.css',
   './macos.css',
   './player-layout.css',
+  './discovery.css',
+  './discovery-feed.mjs',
+  './discovery-categories.mjs',
   './window-chrome.css',
   './window-chrome.mjs',
   './viewport.mjs',

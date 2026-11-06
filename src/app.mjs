@@ -5,6 +5,8 @@ import { AudioEngine, DSP_PRESETS, EQ_BANDS, activeLyricIndex } from './audio.mj
 import { installWebBridge } from './pwa-bridge.mjs';
 import { CommentFeed } from './comment-feed.mjs';
 import { installViewport } from './viewport.mjs';
+import { DiscoveryFeed } from './discovery-feed.mjs';
+import { DISCOVERY_CATEGORIES } from './discovery-categories.mjs';
 
 installWebBridge();
 installViewport();
@@ -87,6 +89,7 @@ let entityParents = [],
   accountName = '',
   accountBusy = false,
   accountChecked = false;
+let homeGroups = {}, selectedQueue = [];
 const labels = {
   home: '发现音乐',
   search: '音源搜索',
@@ -101,6 +104,9 @@ const shortType = {
   artist: '歌手',
   album: '专辑',
 };
+const discovery = new DiscoveryFeed((category, page) => api.discover(category, page), () => {
+  if (state.page === 'home') renderView();
+});
 const action = (name, value = '') => `data-action="${esc(name)}" data-value="${esc(value)}"`;
 function iconButton(name, title, act, value = '', extra = '') {
   return `<button type="button" class="icon ${extra}" title="${esc(title)}" aria-label="${esc(title)}" ${action(act, value)}>${icon(name)}</button>`;
@@ -120,7 +126,7 @@ function cover(item, extra = '') {
   return `<span class="art ${extra}">${icon('music', 22)}${src ? `<img src="${src}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span>`;
 }
 function nav(label, glyph, page, count) {
-  return `<button type="button" class="nav-link ${state.page === page ? 'active' : ''}" ${action('nav', page)}>${icon(glyph)}<span>${label}</span>${count ? '<small>' + count + '</small>' : ''}</button>`;
+  return `<button type="button" class="nav-link ${state.page === page ? 'active' : ''}" ${state.page === page ? 'aria-current="page"' : ''} ${action('nav', page)}>${icon(glyph)}<span>${label}</span>${count ? '<small>' + count + '</small>' : ''}</button>`;
 }
 function sidebar() {
   const preset = DSP_PRESETS.find((p) => p.id === engine.dsp.preset)?.name || '自定义';
@@ -163,15 +169,33 @@ function trackList(items) {
     .join('')}</div>`;
 }
 function home() {
-  return `<h1 class="home-heading">发现音乐</h1><article class="hero">
-    <div class="hero-content"><div class="hero-label"><span></span> 原创试听 EP</div>
-    <h2>山间来信</h2><p class="en-title" lang="en">Letters from the Forest</p>
-    <p class="hero-credit">BiliMusic Studio <i></i> 3 首器乐曲</p>
-    <button class="primary light" ${action('session-play')}>${icon('play', 14)} 播放 EP</button></div>
-    <img class="hero-album" src="./assets/forest.jpg" alt="山间来信专辑封面">
-    </article>
-    <div class="section-head"><h2>探索音源</h2></div><div class="sources">${sourceCard('bilibili', '哔哩哔哩', '投稿与合集')}${sourceCard('kuwo', '酷我音乐', '无损音乐与歌词')}${sourceCard('netease', '网易云音乐', '歌曲与评论')}</div>
-    <div class="section-head"><h2>试听曲目</h2><span>山间来信 · 3 首</span></div>${trackList(session)}`;
+  const feed = discovery.current;
+  const category = DISCOVERY_CATEGORIES.find(item => item.id === discovery.category);
+  homeGroups = { recommended: [...feed.tracks], recent: library.list('history').filter(t => t.source !== 'local').slice(0, 4), offline: session };
+  const lead = feed.tracks[0];
+  const feedback = feed.error
+    ? `<div class="discovery-feedback" role="status"><span>${esc(feed.error)}${lead ? ' 已保留上次内容。' : ''}</span><button class="text-action" ${action('discover-refresh')}>重试</button></div>`
+    : feed.loading ? `<p class="discovery-status" role="status">${lead ? '正在更新音乐…' : '正在读取音乐分区…'}</p>` : '';
+  const featured = lead ? `<article class="discovery-feature">
+    <button class="feature-art" ${action('home-track','recommended:0')} aria-label="播放 ${esc(lead.title)}">${cover(lead)}<span class="cover-play">${icon('play',20)}</span></button>
+    <div class="feature-copy"><p class="feature-kicker">${esc(feed.label || category?.title || '音乐精选')}</p><h2>${esc(lead.title)}</h2><p class="feature-artist">${esc(lead.artist || '哔哩哔哩音乐')}</p><p class="feature-source">哔哩哔哩${lead.duration ? ' · '+fmt(lead.duration) : ''}</p><div class="feature-actions"><button class="primary" ${action('home-track','recommended:0')}>${icon('play',14)} 播放</button><button class="secondary" ${action('home-info','recommended:0')}>曲目详情</button></div></div></article>` : '';
+  const recommendations = feed.tracks.length ? `<section class="discovery-section"><div class="section-head"><h2>${esc(category?.title || '音乐推荐')}</h2><span>${feed.tracks.length} 个音乐投稿</span></div><div class="discovery-grid">${feed.tracks.slice(1).map((track,i) => discoveryCard(track,i+1)).join('')}</div>${feed.hasMore ? `<button class="more" ${action('discover-more')} ${feed.loading ? 'disabled' : ''}>${feed.loading ? '正在加载…' : '加载更多音乐'}</button>` : ''}</section>` : !feed.loading ? empty('暂时没有推荐内容', feed.error ? '可以重试，或从音源搜索直接找歌。' : '换一个分类，继续发现音乐。', `<button class="primary" ${action('source','bilibili')}>${icon('search',15)} 搜索音乐</button>`) : `<div class="discovery-loading" aria-hidden="true"><span></span><span></span><span></span></div>`;
+  return `<div class="discovery-page"><header class="discovery-heading"><div><h1>发现音乐</h1><p class="discovery-subtitle">找到下一首，想要单曲循环的歌。</p></div><button class="refresh-action" ${action('discover-refresh')} ${feed.loading ? 'disabled' : ''}>${icon('history',15)} ${feed.loading ? '更新中' : '刷新'}</button></header>
+    <div class="discovery-categories" role="group" aria-label="音乐分类">${DISCOVERY_CATEGORIES.map(item => `<button ${action('discover-category',item.id)} aria-pressed="${item.id === discovery.category}" class="${item.id === discovery.category ? 'selected' : ''}">${esc(item.title)}</button>`).join('')}</div>
+    <div class="discovery-caption"><span>${esc(feed.description || '哔哩哔哩音乐分区')}</span>${feed.fetchedAt ? `<span>更新于 ${new Date(feed.fetchedAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}</div>
+    ${feedback}${featured}
+    ${homeGroups.recent.length ? `<section class="discovery-section recent-section"><div class="section-head"><h2>接着听</h2><button class="text-action" ${action('nav','history')}>查看全部 ${icon('chevron',12)}</button></div><div class="recent-grid">${homeGroups.recent.map((track,i) => `<button class="recent-track" ${action('home-track','recent:'+i)} aria-label="播放 ${esc(track.title)}">${cover(track,'thumb')}<span><strong>${esc(track.title)}</strong><small>${esc(track.artist || sourceNames[track.source])}</small></span>${icon('play',14)}</button>`).join('')}</div></section>` : ''}
+    ${recommendations}<section class="discovery-sources"><h2>更多音源</h2><div>${sourceCard('bilibili','哔哩哔哩','投稿与合集')}${sourceCard('kuwo','酷我音乐','歌曲与专辑')}${sourceCard('netease','网易云音乐','音乐与评论')}</div></section>
+    <details class="offline-session"><summary>离线试听 · 山间来信</summary><p>三首内置器乐曲，可在没有网络时试听设备。</p><div>${session.map((track,i)=>`<button ${action('home-track','offline:'+i)}>${icon('play',12)} ${esc(track.title)} <small>${fmt(track.duration)}</small></button>`).join('')}</div></details></div>`;
+}
+function discoveryCard(track, index) {
+  const playing = entryKey(track) === entryKey(state.current) && state.playback === 'playing';
+  return `<article class="discovery-card ${playing ? 'playing' : ''}"><button class="discovery-card-main" ${action('home-track','recommended:'+index)} aria-label="播放 ${esc(track.title)}"><span class="discovery-card-art">${cover(track)}<span class="card-duration">${fmt(track.duration)}</span><span class="cover-play">${icon(playing ? 'wave' : 'play',18)}</span></span><strong title="${esc(track.title)}">${esc(track.title)}</strong><small>${esc(track.artist || '哔哩哔哩音乐')}</small></button>${iconButton('dots','曲目详情：'+track.title,'home-info','recommended:'+index)}</article>`;
+}
+function homeSelection(value) {
+  const [group,index] = String(value).split(':');
+  const queue = homeGroups[group];
+  return Array.isArray(queue) && /^\d+$/.test(index) && queue[+index] ? {track:queue[+index],queue:[...queue]} : null;
 }
 function empty(title, subtitle, button = '') {
   return `<div class="empty"><span class="empty-icon">${icon('album', 30)}</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${button}</div>`;
@@ -324,6 +348,8 @@ async function changeAccount() {
     if (logout) await window.biliNative.logoutBilibili();
     else await window.biliNative.loginBilibili();
     api.resetBilibiliSession?.();
+    discovery.invalidate();
+    if (state.page === 'home') void discovery.load();
     await checkAccount();
     if (!accountChecked) notify('暂时无法读取登录状态，请稍后重试');
     else if (logout || accountName) {
@@ -377,9 +403,11 @@ function entityPage() {
   );
 }
 function renderView() {
+  const content = $('#content'), scroll = content.scrollTop;
+  const focused = content.contains(document.activeElement) ? { ...document.activeElement.dataset } : null;
   sidebar();
-  $('#crumb').innerHTML =
-    `<span>${['home', 'search'].includes(state.page) ? '音乐馆' : '资料库'}</span>${icon('chevron', 12)}<strong>${esc(labels[state.page])}</strong>`;
+  $('#crumb').innerHTML = state.page === 'home' ? `<button ${action('nav','home')}>音乐馆</button>` :
+    `<button ${action('nav', ['home','search'].includes(state.page) ? 'home' : 'library')}>${['home', 'search'].includes(state.page) ? '音乐馆' : '资料库'}</button>${icon('chevron', 12)}<strong>${esc(labels[state.page])}</strong>`;
   rows = [];
   entityCards = [];
   $('#content').innerHTML =
@@ -390,6 +418,8 @@ function renderView() {
         : state.page === 'entity'
           ? entityPage()
           : libraryPage(state.page);
+  content.scrollTop = scroll;
+  if (focused?.action) [...content.querySelectorAll('[data-action]')].find(el => el.dataset.action === focused.action && el.dataset.value === focused.value)?.focus({preventScroll:true});
 }
 function navigate(page) {
   if (!Object.hasOwn(labels, page)) return;
@@ -404,6 +434,7 @@ function navigate(page) {
   )
     void checkAccount();
   $('#content').scrollTop = 0;
+  if (page === 'home') void discovery.load();
 }
 function resetSearch() {
   searchToken++;
@@ -894,7 +925,7 @@ function closeSheet(restore = false) {
     clearInterval(commentRefreshTimer);
     comments.close();
     if (restore && parent === 'info') {
-      void openInfo(state.selected);
+      void openInfo(state.selected, selectedQueue);
       return;
     }
     if (restore && parent === 'player') {
@@ -919,8 +950,9 @@ function closeSheet(restore = false) {
 function sheetHead(title) {
   return `<div class="deck-head"><h2 id="sheet-title">${esc(title)}</h2>${iconButton('close', '关闭', 'close')}</div>`;
 }
-async function openInfo(t) {
+async function openInfo(t, queue) {
   if (!t) return;
+  selectedQueue = [...(queue || (rows.some(x => entryKey(x) === entryKey(t)) ? rows : [t]))];
   const id = ++infoToken;
   state.selected = t;
   state.related = [];
@@ -1042,6 +1074,27 @@ function updateCustom() {
 }
 function dispatch(act, val) {
   switch (act) {
+    case 'discover-category':
+      if (!DISCOVERY_CATEGORIES.some(item => item.id === val)) break;
+      void discovery.select(val);
+      $('#content').scrollTop = 0;
+      break;
+    case 'discover-refresh':
+      void discovery.load({refresh:true});
+      break;
+    case 'discover-more':
+      void discovery.load({more:true});
+      break;
+    case 'home-track': {
+      const selected = homeSelection(val);
+      if (selected) void playTrack(selected.track, selected.queue);
+      break;
+    }
+    case 'home-info': {
+      const selected = homeSelection(val);
+      if (selected) void openInfo(selected.track, selected.queue);
+      break;
+    }
     case 'nav':
       navigate(val);
       break;
@@ -1084,7 +1137,7 @@ function dispatch(act, val) {
       openEntity(detailEntities[Number(val)]);
       break;
     case 'current-info':
-      openInfo(state.current);
+      openInfo(state.current, state.queue);
       break;
     case 'comments':
       openComments(val === 'selected' ? state.selected : state.current);
@@ -1138,7 +1191,7 @@ function dispatch(act, val) {
     case 'play-selected': {
       const t = state.selected;
       closeSheet();
-      const q = rows.some((x) => entryKey(x) === entryKey(t)) ? rows : [t];
+      const q = selectedQueue.some((x) => entryKey(x) === entryKey(t)) ? selectedQueue : [t];
       playTrack(t, q);
       break;
     }
@@ -1387,4 +1440,4 @@ const initialQuery = new URLSearchParams(window.location?.search || '').get('q')
 if (initialQuery && initialQuery.length <= 256) {
   $('#global-search').value = initialQuery;
   void runSearch();
-}
+} else void discovery.load();

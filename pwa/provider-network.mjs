@@ -1,6 +1,7 @@
 import { CookieJar } from 'tough-cookie';
 import QRCode from 'qrcode';
 import { createProviders } from '../src/providers.mjs';
+import { DISCOVERY_CATEGORIES } from '../src/discovery-categories.mjs';
 import metadata from './package.json' with { type: 'json' };
 
 const serverAgent = 'BiliMusic/' + metadata.version;
@@ -207,6 +208,15 @@ export async function catalog(session, op, args) {
     return rows;
   }
   if (op === 'search') return remember(await providers.search(source(args[0]), query(args[1]), page(args[2])));
+  if (op === 'discover') {
+    const category = args[0] ?? 'popular';
+    requireInput(args.length <= 2 && DISCOVERY_CATEGORIES.some(item => item.id === category));
+    const requestedPage = page(args[1]);
+    requireInput(requestedPage <= 50);
+    const result = await providers.discover(category, requestedPage);
+    remember(result.tracks);
+    return result;
+  }
   if (op === 'searchEntities') {
     const platform = source(args[0]);
     requireInput((platform === 'bilibili' ? ['uploader'] : ['artist', 'album']).includes(args[1]));

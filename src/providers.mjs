@@ -41,6 +41,7 @@ export function createProviders(request, { canPlayType } = {}) {
   return {
     parseEntity,
     resetBilibiliSession: () => providers.bilibili.resetSession(),
+    discover: (category = 'popular', page = 1) => providers.bilibili.discover(category, page),
     search: (source, query, page = 1) => from(source).search(String(query).trim(), pageNumber(page)),
     searchEntities: (source, type, query, page = 1) => from(source).searchEntities(type, String(query).trim(), pageNumber(page)),
     browse: (entry, page = 1) => from(entry.source).browse(entry, pageNumber(page)),

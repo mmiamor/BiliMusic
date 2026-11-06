@@ -40,6 +40,7 @@ export function installWebBridge() {
 
   const catalog = {};
   for (const op of [
+    'discover',
     'search',
     'searchEntities',
     'browse',

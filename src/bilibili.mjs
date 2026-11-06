@@ -1,6 +1,7 @@
 import { plain, positiveID, seconds, httpsURL, entity, getBody, getJSON, urlWithParams } from './provider-utils.mjs';
 import { signedQuery } from './wbi.mjs';
 import { subtitleLyricLines } from './lyric-lines.mjs';
+import { DISCOVERY_CATEGORIES } from './discovery-categories.mjs';
 
 const source = 'bilibili';
 const api = 'https://api.bilibili.com';
@@ -11,6 +12,17 @@ const headers = {
 };
 const spaceHeaders = mid => ({ ...headers, Referer: 'https://space.bilibili.com/' + mid, Origin: 'https://space.bilibili.com' });
 const bvidPattern = /^BV[0-9A-Za-z]{10}$/;
+const musicRegions = new Set([3, 28, 29, 30, 31, 59, 130, 193, 243, 244]);
+const discoveryQueries = Object.freeze({
+  popular: { keyword: '音乐', tid: 3, order: 'click' },
+  latest: { keyword: '音乐', tid: 3, order: 'pubdate' },
+  live: { keyword: '音乐现场', tid: 29, order: 'totalrank' },
+  covers: { keyword: '翻唱', tid: 31, order: 'totalrank' },
+  instrumental: { keyword: '演奏', tid: 59, order: 'totalrank' },
+  original: { keyword: '原创', tid: 28, order: 'totalrank' },
+});
+const discoveryPageSize = 20;
+const discoveryPageLimit = 50;
 
 function unwrap(result) {
   if (Number(result.code) !== 0) {
@@ -93,6 +105,8 @@ export function biliProvider(request, canPlayType) {
   let sessionEpoch = 0;
   const detailCache = new Map();
   const uploaderCursors = new Map();
+  const discoveryPages = new Map();
+  const discoveryRefreshes = new Map();
   const json = (url, extra = headers) => getJSON(request, url, extra);
   const read = async (url, params, extra) => unwrap(await json(urlWithParams(url, params), extra));
   async function ensureSession() {
@@ -143,6 +157,78 @@ export function biliProvider(request, canPlayType) {
   async function searchRows(type, query, page) {
     await ensureSession();
     return (await read(api + '/x/web-interface/search/type', { search_type: type, keyword: query, page })).result || [];
+  }
+  async function discover(category = 'popular', page = 1) {
+    if (!Object.hasOwn(discoveryQueries, category)) throw new Error('未识别的音乐发现分类。');
+    if (!Number.isSafeInteger(page) || page < 1 || page > discoveryPageLimit) {
+      throw new Error('音乐发现页码须为 1 至 50。');
+    }
+    const config = discoveryQueries[category];
+    const metadata = DISCOVERY_CATEGORIES.find(item => item.id === category);
+    let state = discoveryPages.get(category);
+    let refreshToken;
+    if (page === 1) {
+      // Keep the last successful feed pageable while a refresh is pending or
+      // fails. Only the latest successful refresh may publish its new snapshot.
+      refreshToken = Symbol(category);
+      discoveryRefreshes.set(category, refreshToken);
+      state = { pages: new Map(), pending: new Map(), seen: new Set(), until: Math.floor(Date.now() / 1000) };
+    }
+    if (!state) throw new Error('请从音乐发现的第一页开始加载。');
+    if (state.pages.has(page)) return state.pages.get(page);
+    if (state.pending.has(page)) return state.pending.get(page);
+    if (state.endedAt && page > state.endedAt) {
+      return { ...state.pages.get(state.endedAt), tracks: [], hasMore: false, page };
+    }
+    if (page > 1 && !state.pages.has(page - 1)) throw new Error('请按顺序加载下一页音乐。');
+
+    const requestPage = async () => {
+      await ensureSession();
+      const since = state.until - 30 * 86400;
+      const params = { search_type: 'video', keyword: config.keyword, tids: config.tid,
+        order: config.order, page, page_size: discoveryPageSize };
+      if (category === 'popular') Object.assign(params, { pubtime_begin_s: since, pubtime_end_s: state.until });
+      // The old music ranking endpoint can return an abandoned 2025 snapshot;
+      // region/dynamic is also retired. Use the live music-filtered search API,
+      // with its real sorting and scope stated explicitly in the UI metadata.
+      const data = await read(api + '/x/web-interface/search/type', params);
+      if (!Array.isArray(data.result) || (data.page !== undefined && Number(data.page) !== page)) {
+        throw new Error('哔哩哔哩未返回有效的音乐发现列表。');
+      }
+      const totalPages = data.numPages === undefined ? null : Number(data.numPages);
+      if (totalPages !== null && (!Number.isSafeInteger(totalPages) || totalPages < 0)) {
+        throw new Error('哔哩哔哩返回了无效的音乐发现分页。');
+      }
+      const tracks = [];
+      const pageIDs = new Set();
+      for (const row of data.result) {
+        if (!row || typeof row !== 'object' || (row.type && row.type !== 'video')) continue;
+        const tid = Number(row.typeid ?? row.tid);
+        if (!musicRegions.has(tid) || (config.tid !== 3 && tid !== config.tid)) continue;
+        const published = Number(row.pubdate);
+        if (category === 'popular' && (!Number.isSafeInteger(published) || published < since || published > state.until)) continue;
+        const track = video(row);
+        if (!track || !track.title || pageIDs.has(track.id) || state.seen.has(track.id)) continue;
+        pageIDs.add(track.id);
+        if (Number.isSafeInteger(published) && published > 0) track.publishedAt = published * 1000;
+        const playCount = Number(row.play);
+        if (Number.isSafeInteger(playCount) && playCount >= 0) track.playCount = playCount;
+        tracks.push(track);
+      }
+      const hasMore = data.result.length > 0 && page < discoveryPageLimit &&
+        (totalPages === null ? data.result.length >= discoveryPageSize : page < totalPages);
+      const result = { tracks, hasMore, category, page, source, label: metadata.title,
+        description: metadata.description, updatedAt: Date.now() };
+      for (const id of pageIDs) state.seen.add(id);
+      state.pages.set(page, result);
+      if (!hasMore) state.endedAt = page;
+      if (page === 1 && discoveryRefreshes.get(category) === refreshToken) discoveryPages.set(category, state);
+      return result;
+    };
+    const pending = requestPage();
+    state.pending.set(page, pending);
+    try { return await pending; }
+    finally { state.pending.delete(page); }
   }
   async function search(query, page) {
     const bv = query.match(/^(BV[0-9a-zA-Z]{10})$/) || query.match(/^https?:\/\/(?:www\.|m\.)?bilibili\.com\/video\/(BV[0-9a-zA-Z]{10})(?=[/?#]|$)/);
@@ -258,5 +344,5 @@ export function biliProvider(request, canPlayType) {
     ]);
     return subtitleLyricLines(words, sub.lan, translations);
   }
-  return { search, resolve, lyrics, entities, searchEntities, browse, collections, resetSession };
+  return { search, discover, resolve, lyrics, entities, searchEntities, browse, collections, resetSession };
 }
